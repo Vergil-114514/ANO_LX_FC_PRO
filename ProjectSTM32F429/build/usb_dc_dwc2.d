@@ -1,0 +1,16 @@
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_dc_dwc2.c
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usbd_core.h
+.\build\usb_dc_dwc2.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\build\usb_dc_dwc2.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+.\build\usb_dc_dwc2.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\build\usb_dc_dwc2.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_config.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_util.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_errno.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_def.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_list.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_mem.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_log.h
+.\build\usb_dc_dwc2.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_dc.h
+.\build\usb_dc_dwc2.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_dwc2_reg.h

@@ -1,0 +1,15 @@
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usbd_core.c
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usbd_core.h
+.\build\usbd_core.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\build\usbd_core.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+.\build\usbd_core.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\build\usbd_core.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_config.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_util.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_errno.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_def.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_list.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_mem.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_log.h
+.\build\usbd_core.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\build\usbd_core.o: ..\DriversMcu\STM32F4xx\cherryusb\usb_dc.h

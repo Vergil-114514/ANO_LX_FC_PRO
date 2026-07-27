@@ -1,0 +1,260 @@
+#include "AnoPTv8ExAPI.h"
+uint16_t swjLinkType = LT_D_IMU;
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP1：
+实现AnoPTv8HwSendBytes和AnoPTv8HwTrigger1ms函数，一个是连接底层硬件实现数据发送，一个是1毫秒周期执行，判断是否有数据需要收发
+如果只需要向上位机发送数据进行显示，不需要参数读写、命令执行等功能，那么只需要实现这两个函数即可，后续步骤不需要进行
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+/*AnoPTv8HwSendBytes此函数需要根据用户自己的设备，具体实现，比如使用串口连接上位机，这里就对应该串口的发送函数
+注意：串口驱动务必使用中断+缓冲区或者DMA+缓冲区的方式，阻塞式发送将大大影响系统性能
+注意：串口缓冲区不应过小，推荐256字节或以上
+这里需引用对应的串口h文件*/
+#include "Drv_Uart.h"
+#include "drv_usb.h"
+void AnoPTv8HwSendBytes(const uint16_t linktype, const uint8_t *buf, const uint16_t len)
+{
+    if(LT_U1 & linktype)
+	{
+		DrvUart2SendBuf(buf, len);
+        DrvUart1SendBuf(buf, len);
+	}
+    if(LT_U2 & linktype)
+        DrvUart2SendBuf(buf, len);
+    if(LT_U3 & linktype)
+        DrvUart3SendBuf(buf, len);
+    if(LT_U4 & linktype)
+        DrvUart4SendBuf(buf, len);
+    if(LT_U5 & linktype)
+        DrvUart5SendBuf(buf, len);
+	if(LT_U7 & linktype)
+        DrvUart7SendBuf(buf, len);
+	if(LT_U8 & linktype)
+        DrvUart8SendBuf(buf, len);
+	if(LT_USBCDC & linktype)
+        DrvUsbCdcAddTxData(buf, len);
+}
+/*用户需要在1ms定时中断或者系统滴答或者自己设计的调度器内以1ms的时间间隔调用此函数*/
+void AnoPTv8HwTrigger1ms(void)
+{
+    AnoPTv8RunThread1ms();
+}
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP2：
+实现AnoPTv8HwRecvByte函数，是连接底层硬件实现数据接收，实现本函数后，即可实现上位机读取设备信息
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+/*AnoPTv8HwRecvByte此函数已在AnoPTv8ExAPI.h中声明，用户需要在对应串口的接收事件中调用此函数
+注意：此函数传入的是字节数据，如果接收事件接收到的数据大于1字节，多次调用此函数即可*/
+void AnoPTv8HwRecvByte(const uint16_t linktype, const uint8_t dat)
+{
+    AnoPTv8RecvOneByte(linktype, dat);
+}
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP3：
+实现参数读写，具体教程请参见https://gitee.com/anotc/AnoAssistant/
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+void AnoPTv8HwParValRecvCallback(const uint16_t linktype, const _un_frame_v8 *p)
+{
+
+}
+
+void AnoPTv8HwParCmdRecvCallback(const uint16_t linktype, const _un_frame_v8 *p)
+{
+
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+参数功能示例
+1、先定义一个参数，注意参数类型
+2、定义参数信息，依次为参数指针，参数类型，最小值，最大值，参数名称，参数说明
+3、注册参数信息
+*/
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+uint8_t testPar_u8 = 123;
+int16_t testPar_s16 = -123;
+char _strParTest[30] = "测试参数www.anotc.com";
+const _st_par_info _parInfoList[] =
+{
+    {&testPar_u8, PVT_U8,0,200,"testPar_u8", "测试参数，uint8"},
+    {&testPar_s16, PVT_S16,-200,200,"testPar_s16", "测试参数，int16"},
+    {_strParTest, PVT_Str,0,30,"StrPar", "StrParForTest"},
+};
+
+void AnoPTv8ParInit(void)
+{
+    //根据定义的数据长度，除以信息结构体长度，确定参数数量
+    int _c = sizeof(_parInfoList) / sizeof(_st_par_info);
+    for(int i=0; i<_c; i++)
+    {
+        //循环调用参数注册函数，将参数信息注册至匿名V8协议解析器
+        AnoPTv8ParRegister(&_parInfoList[i]);
+    }
+}
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP4：
+实现命令读写，具体教程请参见https://gitee.com/anotc/AnoAssistant/
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+命令功能示例
+*/
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void testFun(const _un_frame_v8 *p, uint16_t cmdindex)
+{
+    //第一个参数+1作为测试
+    testPar_u8 += 1;
+    //发送一个字符串作为测试
+    AnoPTv8SendStr(LT_D_IMU, ANOPTV8DEVID_SWJ,ANOLOGCOLOR_GREEN, "testFun OK!");
+	//uint8_t _test[25] = {0x0f,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+	//					0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+	//					0x01,0x01,0x01,0x01,0x00};
+	uint8_t _test[25] = {0x0f,0x01,0xFC,0xDF,0xFF,0xFE,0x07,0x0F,0x78,0xC0,
+						0x03,0x1E,0xFF,0xFB,0xDF,0xFF,0xFE,0xF7,0xBF,0x19,
+						0x03,0x10,0x80,0x00,0x00};
+	for(int i=0; i<25; i++)
+	{
+		DrvSbusGetOneByte(_test[i]);
+	}
+}
+void testFun2(const _un_frame_v8 *p, uint16_t cmdindex)
+{
+    //示例：有4个参数的命令，第一个参数为u8，第二个为uint16_t ，第3个为s16，第4个为float
+    uint8_t 	_par1 =0;
+    uint16_t 	_par2 =0;
+    int16_t 	_par3 =0;
+    float 		_par4 =0;
+    //从命令中获取参数值
+    AnoPTv8CmdValCpy(&_par1, p, cmdindex, 0);
+    AnoPTv8CmdValCpy(&_par2, p, cmdindex, 1);
+    AnoPTv8CmdValCpy(&_par3, p, cmdindex, 2);
+    AnoPTv8CmdValCpy(&_par4, p, cmdindex, 3);
+    //打印这几个参数的值
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par1, "_par1");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par2, "_par2");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par3, "_par3");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par4, "_par4");
+}
+const _st_cmd_info _cmdInfoList[] =
+{
+    //3字节CMDID定义	+8字节CMDVAL定义	+命令名称		+命令介绍		+该命令的函数指针
+    {{{0x01,0x01,0x01},{CVT_NA,CVT_NA,CVT_NA,CVT_NA,CVT_NA,CVT_NA,CVT_NA,CVT_NA}},"testFun","命令测试函数",testFun},
+    {{{0x01,0x01,0x02},{CVT_U8,CVT_U16,CVT_S16,CVT_Float,CVT_NA,CVT_NA,CVT_NA,CVT_NA}},"testFun2","命令测试函数2",testFun2},
+};
+
+void AnoPTv8CmdInit(void)
+{
+    int CmdCount = sizeof(_cmdInfoList) / sizeof(_st_cmd_info);
+    for(int i=0; i<CmdCount; i++)
+        AnoPTv8CmdRegister(&_cmdInfoList[i]);
+}
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP_：
+实现数据解析，命令帧、参数帧在AnoPTv8Run中已经解析，这里可以用于解析其他数据帧
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+#include "DataTransfer.h"
+#include "Drv_AnoOf.h"
+void AnoPTv8FrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
+{
+	if(ANOPTV8DEVID_LXIMU == p->frame.sdevid)
+		AnoDTLxFrameAnl(linktype, p);
+	else if(ANOPTV8DEVID_OF  == p->frame.sdevid)
+		AnoOFFrameAnl(linktype, p);
+}
+/***********************************************************************************************************************************************
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+移植STEP_：
+实现数据转发，可选功能，用户可不实现本函数，函数留空即可。
+当一个设备上，有多个基于匿名协议通信的设备时，可实现本函数
+以拓空者飞控为例，飞控串口5接数传或通过USB接口和上位机通信，同时串口4默认接匿名光流，就可以利用本函数，实现通过数传，
+数据统一发给拓空者，拓空者根据数据帧的目的地址字节，判断数据是否需要转发
+************************************************************************************************************************************************
+************************************************************************************************************************************************
+***********************************************************************************************************************************************/
+void AnoPTv8FrameExchange(const uint8_t linktype, const _un_frame_v8 *p)
+{
+    //情景1：广播数据
+    if(ANOPTV8DEVID_ALL == p->frame.ddevid)
+    {
+        if(ANOPTV8DEVID_SWJ == p->frame.sdevid)
+        {
+			swjLinkType = linktype;
+            //如果是上位机发出的广播数据，则转发给所有匿名设备，加判断是为了防止数据自收发形成死循环
+			if(!(LT_USBCDC & linktype))
+				AnoPTv8HwSendBytes(LT_USBCDC, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U1 & linktype))
+				AnoPTv8HwSendBytes(LT_U1, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U2 & linktype))
+				AnoPTv8HwSendBytes(LT_U2, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U3 & linktype))
+				AnoPTv8HwSendBytes(LT_U3, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U4 & linktype))
+				AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U5 & linktype))
+				AnoPTv8HwSendBytes(LT_U5, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U7 & linktype))
+				AnoPTv8HwSendBytes(LT_U7, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+			if(!(LT_U8 & linktype))
+				AnoPTv8HwSendBytes(LT_U8, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+        }
+    }
+    //情景2：非广播数据，直接根据目的设备ID进行转发
+    else
+    {
+        switch(p->frame.ddevid)
+        {
+		case ANOPTV8DEVID_LXIMU:
+            AnoPTv8HwSendBytes(LT_D_IMU, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+		case ANOPTV8DEVID_PMU:
+            AnoPTv8HwSendBytes(LT_D_PMU, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+		break;
+        case ANOPTV8DEVID_OF:
+            AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_SWJ:
+			AnoPTv8HwSendBytes(swjLinkType, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_UART1:
+            AnoPTv8HwSendBytes(LT_U1, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_UART2:
+            AnoPTv8HwSendBytes(LT_U2, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_UART3:
+            AnoPTv8HwSendBytes(LT_U3, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_UART4:
+            AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        case ANOPTV8DEVID_UART5:
+            AnoPTv8HwSendBytes(LT_U5, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+		case ANOPTV8DEVID_UART7:
+            AnoPTv8HwSendBytes(LT_U7, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+		case ANOPTV8DEVID_UART8:
+            AnoPTv8HwSendBytes(LT_U8, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            break;
+        }
+    }
+}

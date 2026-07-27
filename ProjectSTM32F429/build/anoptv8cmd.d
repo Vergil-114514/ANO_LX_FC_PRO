@@ -1,0 +1,11 @@
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8Cmd.c
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8Cmd.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8.h
+.\build\anoptv8cmd.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\build\anoptv8cmd.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8Run.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8Par.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8Cmd.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8ExAPI.h
+.\build\anoptv8cmd.o: ..\FcSrc\AnoPTv8\AnoPTv8FrameFactory.h
