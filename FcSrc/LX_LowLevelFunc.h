@@ -152,6 +152,8 @@ extern _pwm_st pwm_to_esc;
 
 //public
 void ANO_LX_Task(void);
+uint8_t LX_MotorTestStart(uint8_t motorMask, uint16_t pulseUs, uint16_t durationMs);
+void LX_MotorTestStop(void);
 
 #endif
 

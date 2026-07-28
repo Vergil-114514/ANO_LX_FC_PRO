@@ -20,6 +20,7 @@ typedef struct
 
 void AnoDTLxRunTask1Ms(float dT_s);
 void AnoDTLxFrameAnl(const uint8_t linktype, const _un_frame_v8 *p);
+void AnoDTMotorTestFrameAnl(const uint8_t linktype, const _un_frame_v8 *p);
 void AnoDTLxFrameSend(const uint8_t fid);
 void AnoDTLxFrameSendTrigger(const uint8_t fid);
 #endif

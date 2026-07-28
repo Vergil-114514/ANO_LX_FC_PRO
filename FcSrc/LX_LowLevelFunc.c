@@ -39,6 +39,8 @@ _fc_att_un fc_att;
 _fc_att_qua_un fc_att_qua;
 _fc_vel_un fc_vel;
 _fc_alt_un fc_alt;
+static int16_t motor_test_pwm[8];
+static uint16_t motor_test_time_ms;
 
 //遥控CH5(AUX1)通道值(1000-1500-2000)设置模式1-2-3，模式0需要通过单独发送指令设置
 //模式0：姿态自稳    ->遥控CH1-CH4直接控制姿态和油门。
@@ -211,6 +213,35 @@ static inline void RC_Data_Task(float dT_s)
 }
 
 //输出给电调
+uint8_t LX_MotorTestStart(uint8_t motorMask, uint16_t pulseUs, uint16_t durationMs)
+{
+    uint8_t i;
+
+    if (motorMask == 0U || (motorMask & (motorMask - 1U)) != 0U || pulseUs < 1000U || pulseUs > 1100U || durationMs == 0U || durationMs > 1000U)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < 8U; i++)
+    {
+        motor_test_pwm[i] = (motorMask & ((uint8_t)1U << i)) ? (int16_t)(pulseUs - 1000U) : 0;
+    }
+
+    motor_test_time_ms = durationMs;
+    return 1;
+}
+
+void LX_MotorTestStop(void)
+{
+    uint8_t i;
+
+    motor_test_time_ms = 0;
+    for (i = 0; i < 8U; i++)
+    {
+        motor_test_pwm[i] = 0;
+    }
+}
+
 static inline void ESC_Output(uint8_t unlocked)
 {
     static int16_t pwm[8];
@@ -223,6 +254,15 @@ static inline void ESC_Output(uint8_t unlocked)
     pwm[5] = pwm_to_esc.pwm_m6 * 0.1f;
     pwm[6] = pwm_to_esc.pwm_m7 * 0.1f;
     pwm[7] = pwm_to_esc.pwm_m8 * 0.1f;
+
+    if (motor_test_time_ms > 0U)
+    {
+        for (uint8_t i = 0; i < 8U; i++)
+        {
+            pwm[i] = motor_test_pwm[i];
+        }
+        motor_test_time_ms--;
+    }
 
     //
     //解锁才输出，否则输出0油门

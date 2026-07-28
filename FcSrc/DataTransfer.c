@@ -146,6 +146,27 @@ void AnoDTLxFrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
     break;
     }
 }
+void AnoDTMotorTestFrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
+{
+    uint16_t pulseUs;
+    uint16_t durationMs;
+
+    if (linktype != LT_U2 || p->frame.ddevid != ANOPTV8DEVID_MY || p->frame.frameid != 0xF1 || p->frame.datalen != 6U || p->frame.data[0] != 0xA5U)
+    {
+        return;
+    }
+
+    if (p->frame.data[1] == 0U && p->frame.data[2] == 0U && p->frame.data[3] == 0U && p->frame.data[4] == 0U && p->frame.data[5] == 0U)
+    {
+        LX_MotorTestStop();
+        return;
+    }
+
+    pulseUs = (uint16_t)p->frame.data[2] | ((uint16_t)p->frame.data[3] << 8);
+    durationMs = (uint16_t)p->frame.data[4] | ((uint16_t)p->frame.data[5] << 8);
+    LX_MotorTestStart(p->frame.data[1], pulseUs, durationMs);
+}
+
 void AnoDTLxFrameSend(const uint8_t fid)
 {
     switch (fid)
