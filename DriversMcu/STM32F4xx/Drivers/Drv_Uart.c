@@ -29,7 +29,7 @@ void NoUse(const uint8_t type, const uint8_t data) {}
 #define U3GetOneByte	AnoPTv8HwRecvByte
 #define U4GetOneByte	UBLOX_M8_GPS_Data_Receive
 #define U5GetOneByte	DrvAnoOFGetOneByte_ptv7
-#define U7GetOneByte	DrvRcCrsfRxOneByte
+#define U7GetOneByte	DrvRcLoraRxOneByte
 #define U8GetOneByte	AnoPTv8HwRecvByte
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart1

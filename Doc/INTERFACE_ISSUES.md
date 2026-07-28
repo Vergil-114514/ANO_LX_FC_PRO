@@ -12,7 +12,7 @@ telemetry and replies addressed to SWJ are mirrored to all three host links,
 instead of selecting one global return path.
 
 SWJ broadcast commands are forwarded only to UART1/LX IMU. They are not sent to
-GPS on UART4, PTV7 input on UART5, CRSF on UART7, USB CDC, or another host link.
+GPS on UART4, PTV7 input on UART5, LORA input on UART7, USB CDC, or another host link.
 
 ## UB PTV7 direct-query limitation
 
@@ -23,6 +23,18 @@ for the LX IMU on UART1.
 PTv8 frames addressed to the optical-flow device are intentionally dropped.
 There is no direct PTv8 upper-computer configuration route to UB; this avoids
 the obsolete route that sent those requests to UART4/GPS.
+The generic UART5 and UART7 PTv8 device-address routes are also dropped, so
+host traffic cannot be forwarded to the PTV7 sensor or LORA receiver.
+
+## UART7 LORA remote receiver
+
+UF/UART7 is a LORA3A22 remote-control receiver at `115200 8N1`. It accepts only
+the paired module's transparent 18-byte receive frames; the flight controller
+does not configure, pair, or send telemetry through the LORA module.
+
+Mode 3 is now LORA, not CRSF. A valid frame selects it immediately. If no valid
+frame arrives for 500 ms, the normal receiver `fail_safe` path is used. This
+also covers the transmitter's 120-second idle low-power behavior.
 
 ## Debugger VCOM observation
 

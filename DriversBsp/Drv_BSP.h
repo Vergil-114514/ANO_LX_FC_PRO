@@ -6,15 +6,14 @@
 
 typedef struct
 {
-	uint8_t sig_mode; //0==null,1==ppm,2==sbus
+	uint8_t sig_mode; //0==null,1==ppm,2==sbus,3==lora
 	//
 	int16_t ppm_ch[9];
 	//
 	int16_t sbus_ch[16];
 	uint8_t sbus_flag;
 	//
-	int16_t crsf_ch[16];
-	uint8_t crsf_flag;
+	int16_t lora_ch[10];
 	//
 	uint16_t  signal_fre;
 	uint8_t no_signal;

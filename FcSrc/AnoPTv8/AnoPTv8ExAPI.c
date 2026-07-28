@@ -231,7 +231,9 @@ void AnoPTv8FrameExchange(const uint8_t linktype, const _un_frame_v8 *p)
             break;
 
         case ANOPTV8DEVID_OF:
-            /* UART5/UB accepts PTV7 input only. */
+        case ANOPTV8DEVID_UART5:
+        case ANOPTV8DEVID_UART7:
+            /* UART5/UB accepts PTV7 input only; UART7/UF accepts LORA input only. */
             break;
 
         case ANOPTV8DEVID_SWJ:
@@ -254,13 +256,6 @@ void AnoPTv8FrameExchange(const uint8_t linktype, const _un_frame_v8 *p)
             AnoPTv8HwSendBytes(LT_U4, p->rawBytes, frameLen);
             break;
 
-        case ANOPTV8DEVID_UART5:
-            AnoPTv8HwSendBytes(LT_U5, p->rawBytes, frameLen);
-            break;
-
-        case ANOPTV8DEVID_UART7:
-            AnoPTv8HwSendBytes(LT_U7, p->rawBytes, frameLen);
-            break;
 
         case ANOPTV8DEVID_UART8:
             AnoPTv8HwSendBytes(LT_U8, p->rawBytes, frameLen);

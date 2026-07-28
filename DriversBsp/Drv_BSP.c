@@ -53,7 +53,7 @@ uint8_t All_Init()
     //串口5
     DrvUart5Init(500000);
     //串口7
-    DrvUart7Init(420000);
+    DrvUart7Init(115200);
     //串口8
     DrvUart8Init(500000);
     MyDelayMs(100);
@@ -81,6 +81,7 @@ void DrvRcInputInit(void)
 {
     //任意初始化一个模式
     DrvRcPpmInit();
+    DrvRcLoraInit();
     //DrvRcSbusInit();
     //先标记位丢失
     rc_in.no_signal = 1;
@@ -237,7 +238,7 @@ static void rcSignalCheck(float *dT_s)
                 }
 				else
 				{
-					DrvRcCrsfInit();
+					DrvRcLoraInit();
 				}
             }
         }
@@ -256,10 +257,17 @@ static void rcSignalCheck(float *dT_s)
 void DrvRcInputTask(float dT_s)
 {
     static uint8_t failsafe;
+    uint8_t lora_link_alive;
     //信号检测
     rcSignalCheck( &dT_s);
+    lora_link_alive = DrvRcLoraLinkAlive(dT_s);
 
     //有信号
+    if (rc_in.sig_mode == 3 && lora_link_alive == 0)
+    {
+        rc_in.no_signal = 1;
+    }
+
     if (rc_in.no_signal == 0)
     {
         //ppm
@@ -278,12 +286,12 @@ void DrvRcInputTask(float dT_s)
                 rc_in.rc_ch.st_data.ch_[i] = 0.644f * (rc_in.sbus_ch[i] - 1024) + 1500; //248 --1024 --1800转换到1000-2000
             }
         }
-		//crsf
+		//lora
 		else if (rc_in.sig_mode == 3)
         {
             for (uint8_t i = 0; i < 10; i++) //注意只有10个通道
             {
-                rc_in.rc_ch.st_data.ch_[i] = 0.61013f * (rc_in.crsf_ch[i] - 172) + 1000; //172  --992  --1811 转换到1000-2000
+                rc_in.rc_ch.st_data.ch_[i] = rc_in.lora_ch[i];
             }
         }
 

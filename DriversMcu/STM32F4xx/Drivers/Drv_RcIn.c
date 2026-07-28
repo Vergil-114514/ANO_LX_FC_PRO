@@ -134,100 +134,151 @@ void Sbus_IRQH(void)
         DrvSbusGetOneByte(com_data);
     }
 }
-//====CRSF====
-CRSF_Frame crsf_frame;
-void DrvRcCrsfInit(void)
-{
-	
-}
+//====LORA3A22====
+#define LORA3A22_AXIS_FULL_SCALE 2047
 
-static uint8_t crsf_crc8(uint8_t *data, uint8_t len)
+static uint8_t lora_rx_buffer[LORA3A22_FRAME_LEN];
+static uint8_t lora_rx_index;
+static uint16_t lora_link_age_ms;
+static uint8_t lora_link_seen;
+
+static uint8_t loraFrameChecksum(const uint8_t *frame)
 {
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < len; i++)
+    uint8_t checksum = 0;
+    uint8_t i;
+
+    for (i = 0; i < LORA3A22_FRAME_LEN; i++)
     {
-        crc ^= data[i];
-        for (uint8_t j = 0; j < 8; j++)
+        if (i != 1U)
         {
-            if (crc & 0x80)
-            {
-                crc = (crc << 1) ^ 0xD5;
-            }
-            else
-            {
-                crc <<= 1;
-            }
+            checksum += frame[i];
         }
     }
-    return crc;
+
+    return checksum;
 }
 
-void DrvRcCrsfRxOneByte(const uint8_t linktype, const uint8_t rx_byte)
+static int16_t loraReadInt16LE(const uint8_t *data)
 {
-	static uint8_t crsf_rx_index = 0;
-    static uint8_t crsf_rx_buffer[CRSF_MAX_PAYLOAD_LEN + 4];  // 接收缓冲区
+    return (int16_t)((uint16_t)data[0] | ((uint16_t)data[1] << 8));
+}
 
-    // 1. 检查是否是新帧开始（设备地址）
-    if (crsf_rx_index == 0 && rx_byte == CRSF_ADDRESS_FLIGHT_CONTROLLER)
+static int16_t loraAxisToChannel(int16_t raw, int32_t direction)
+{
+    int32_t channel;
+
+    channel = 1500 + ((int32_t)raw * direction * 500) / LORA3A22_AXIS_FULL_SCALE;
+
+    if (channel < 1000)
     {
-        crsf_rx_buffer[crsf_rx_index++] = rx_byte;
+        channel = 1000;
     }
-    // 2. 如果已经开始接收，存储数据
-    else if (crsf_rx_index > 0)
+    else if (channel > 2000)
     {
-        crsf_rx_buffer[crsf_rx_index++] = rx_byte;
+        channel = 2000;
+    }
 
-        // 3. 检查是否接收完整个帧
-        if (crsf_rx_index >= 2)
-        {
-            uint8_t frame_len = crsf_rx_buffer[1];  // 第 2 字节是长度
+    return (int16_t)channel;
+}
 
-            if (crsf_rx_index >= frame_len + 2)     // 完整帧 = Addr(1) + Len(1) + Data(Len) + CRC(1)
-            {
-                // 4. 校验 CRC
-                uint8_t crc = crsf_crc8( &crsf_rx_buffer[2], frame_len - 1); // 计算 CRC（Addr + Len + Data）
+static void loraUpdateChannels(void)
+{
+    const uint8_t *frame = lora_rx_buffer;
+    uint8_t switch0 = frame[14];
+    uint8_t switch1 = frame[15];
+    uint8_t i;
 
-                if (crc == crsf_rx_buffer[frame_len + 1])
-                {
-                    // 5. 解析帧
-                    crsf_frame.device_addr = crsf_rx_buffer[0];
-                    crsf_frame.frame_length = crsf_rx_buffer[1];
-                    crsf_frame.frame_type = crsf_rx_buffer[2];
-                    memcpy((uint8_t *)crsf_frame.payload, &crsf_rx_buffer[3], frame_len - 2); // 数据部分
-                    crsf_frame.crc = crsf_rx_buffer[frame_len + 1];
+    // Mode 2: right horizontal/vertical -> roll/pitch, left vertical/horizontal -> throttle/yaw.
+    rc_in.lora_ch[0] = loraAxisToChannel(loraReadInt16LE(&frame[6]), LORA3A22_ROLL_SIGN);
+    rc_in.lora_ch[1] = loraAxisToChannel(loraReadInt16LE(&frame[8]), LORA3A22_PITCH_SIGN);
+    rc_in.lora_ch[2] = loraAxisToChannel(loraReadInt16LE(&frame[4]), LORA3A22_THROTTLE_SIGN);
+    rc_in.lora_ch[3] = loraAxisToChannel(loraReadInt16LE(&frame[2]), LORA3A22_YAW_SIGN);
 
-                    if (crsf_frame.frame_type == CRSF_FRAMETYPE_RC_CHANNELS_PACKED)
-                    {
-                        crsf_channels_t *ch = (crsf_channels_t *) &crsf_rx_buffer[3];
-                        rc_in.crsf_ch[0] = ch->ch0;
-                        rc_in.crsf_ch[1] = ch->ch1;
-                        rc_in.crsf_ch[2] = ch->ch2;
-                        rc_in.crsf_ch[3] = ch->ch3;
-                        rc_in.crsf_ch[4] = ch->ch4;
-                        rc_in.crsf_ch[5] = ch->ch5;
-                        rc_in.crsf_ch[6] = ch->ch6;
-                        rc_in.crsf_ch[7] = ch->ch7;
-                        rc_in.crsf_ch[8] = ch->ch8;
-                        rc_in.crsf_ch[9] = ch->ch9;
-                        rc_in.crsf_ch[10] = ch->ch10;
-                        rc_in.crsf_ch[11] = ch->ch11;
-                        rc_in.crsf_ch[12] = ch->ch12;
-                        rc_in.crsf_ch[13] = ch->ch13;
-                        rc_in.crsf_ch[14] = ch->ch14;
-                        rc_in.crsf_ch[15] = ch->ch15;
-						
-						rc_in.signal_cnt_tmp++;
-						rc_in.rc_in_mode_tmp = 3; //切换模式标记为crsf
-                    }
-                    else
-                    {
-                    }
-                }
+    // switch_key[2]: high is normal; low requests the existing emergency-stop channel.
+    rc_in.lora_ch[4] = (frame[16] != 0U) ? 1000 : 2000;
 
-                crsf_rx_index = 0;  // 重置接收索引
-            }
-        }
+    if (switch0 != 0U && switch1 != 0U)
+    {
+        rc_in.lora_ch[5] = 1000;
+    }
+    else if (switch0 != 0U)
+    {
+        rc_in.lora_ch[5] = 1500;
+    }
+    else if (switch1 != 0U)
+    {
+        rc_in.lora_ch[5] = 2000;
+    }
+    else
+    {
+        rc_in.lora_ch[5] = 1000;
+    }
+
+    for (i = 0; i < 4U; i++)
+    {
+        rc_in.lora_ch[6U + i] = (frame[10U + i] != 0U) ? 2000 : 1000;
     }
 }
 
+void DrvRcLoraInit(void)
+{
+    lora_rx_index = 0;
+    lora_link_age_ms = LORA3A22_LINK_TIMEOUT_MS;
+    lora_link_seen = 0;
+}
 
+void DrvRcLoraRxOneByte(const uint8_t linktype, const uint8_t rx_byte)
+{
+    (void)linktype;
+
+    if (lora_rx_index == 0U)
+    {
+        if (rx_byte == LORA3A22_FRAME_HEAD)
+        {
+            lora_rx_buffer[lora_rx_index++] = rx_byte;
+        }
+        return;
+    }
+
+    lora_rx_buffer[lora_rx_index++] = rx_byte;
+
+    if (lora_rx_index < LORA3A22_FRAME_LEN)
+    {
+        return;
+    }
+
+    if (loraFrameChecksum(lora_rx_buffer) == lora_rx_buffer[1])
+    {
+        loraUpdateChannels();
+        lora_link_age_ms = 0;
+        lora_link_seen = 1;
+        rc_in.signal_cnt_tmp++;
+        rc_in.rc_in_mode_tmp = 3;
+        rc_in.sig_mode = 3;
+        rc_in.no_signal = 0;
+    }
+
+    lora_rx_index = 0;
+}
+
+uint8_t DrvRcLoraLinkAlive(float dT_s)
+{
+    uint16_t elapsed_ms;
+
+    if (lora_link_seen == 0U || lora_link_age_ms >= LORA3A22_LINK_TIMEOUT_MS)
+    {
+        return 0;
+    }
+
+    elapsed_ms = (uint16_t)(dT_s * 1000.0f + 0.5f);
+    if (elapsed_ms >= (LORA3A22_LINK_TIMEOUT_MS - lora_link_age_ms))
+    {
+        lora_link_age_ms = LORA3A22_LINK_TIMEOUT_MS;
+    }
+    else
+    {
+        lora_link_age_ms += elapsed_ms;
+    }
+
+    return (lora_link_age_ms < LORA3A22_LINK_TIMEOUT_MS) ? 1U : 0U;
+}
