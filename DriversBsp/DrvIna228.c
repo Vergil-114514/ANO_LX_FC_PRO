@@ -75,7 +75,12 @@ float ina228_ReadBusVoltage(void) {
 
 // 读取电流（A）
 float ina228_ReadCurrent(void) {
-    return 0.0f;
+	uint8_t _v[3] = {0};
+	DrvSI2c_ReadNByte(INA228_I2C_ADDR, INA228_CURRENT, 3, _v);
+	int32_t _i32 = ((int32_t)_v[0]<<16) | ((int32_t)_v[1]<<8) | ((int32_t)_v[2]);
+	_i32 &= 0x000FFFFF; // 保留低20位
+	int32_t value = (int32_t)(_i32 << 12) >> 16;
+    return (float)value * 204.8f/524288.0f;  
 }
 
 // 读取功率（W）

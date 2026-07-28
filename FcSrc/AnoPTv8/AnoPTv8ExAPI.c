@@ -1,4 +1,5 @@
 #include "AnoPTv8ExAPI.h"
+uint16_t swjLinkType = LT_D_IMU;
 /***********************************************************************************************************************************************
 ************************************************************************************************************************************************
 ************************************************************************************************************************************************
@@ -132,7 +133,7 @@ void testFun(const _un_frame_v8 *p, uint16_t cmdindex)
     //第一个参数+1作为测试
     testPar_u8 += 1;
     //发送一个字符串作为测试
-    AnoPTv8SendStr(LT_D_SWJ, ANOPTV8DEVID_SWJ, ANOLOGCOLOR_GREEN, "testFun OK!");
+    AnoPTv8SendStr(LT_D_IMU, ANOPTV8DEVID_SWJ, ANOLOGCOLOR_GREEN, "testFun OK!");
     //uint8_t _test[25] = {0x0f,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
     //					0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
     //					0x01,0x01,0x01,0x01,0x00};
@@ -159,10 +160,10 @@ void testFun2(const _un_frame_v8 *p, uint16_t cmdindex)
     AnoPTv8CmdValCpy( &_par3, p, cmdindex, 2);
     AnoPTv8CmdValCpy( &_par4, p, cmdindex, 3);
     //打印这几个参数的值
-    AnoPTv8SendValStr(LT_D_SWJ, ANOPTV8DEVID_SWJ, _par1, "_par1");
-    AnoPTv8SendValStr(LT_D_SWJ, ANOPTV8DEVID_SWJ, _par2, "_par2");
-    AnoPTv8SendValStr(LT_D_SWJ, ANOPTV8DEVID_SWJ, _par3, "_par3");
-    AnoPTv8SendValStr(LT_D_SWJ, ANOPTV8DEVID_SWJ, _par4, "_par4");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par1, "_par1");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par2, "_par2");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par3, "_par3");
+    AnoPTv8SendValStr(LT_D_IMU, ANOPTV8DEVID_SWJ, _par4, "_par4");
 }
 
 const _st_cmd_info _cmdInfoList[] = {
@@ -214,56 +215,90 @@ void AnoPTv8FrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
 ***********************************************************************************************************************************************/
 void AnoPTv8FrameExchange(const uint8_t linktype, const _un_frame_v8 *p)
 {
-    const uint16_t frameLen = p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2;
-
+    //情景1：广播数据
     if (ANOPTV8DEVID_ALL == p->frame.ddevid) {
-        if (ANOPTV8DEVID_SWJ == p->frame.sdevid && !(LT_D_IMU & linktype)) {
-            AnoPTv8HwSendBytes(LT_D_IMU, p->rawBytes, frameLen);
+        if (ANOPTV8DEVID_SWJ == p->frame.sdevid) {
+            swjLinkType = linktype;
+
+            //如果是上位机发出的广播数据，则转发给所有匿名设备，加判断是为了防止数据自收发形成死循环
+            if (!(LT_USBCDC &linktype)) {
+                AnoPTv8HwSendBytes(LT_USBCDC, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U1 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U1, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U2 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U2, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U3 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U3, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U4 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U5 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U5, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U7 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U7, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
+
+            if (!(LT_U8 &linktype)) {
+                AnoPTv8HwSendBytes(LT_U8, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
+            }
         }
-    } else {
+    }
+    //情景2：非广播数据，直接根据目的设备ID进行转发
+    else {
         switch (p->frame.ddevid) {
         case ANOPTV8DEVID_LXIMU:
-            AnoPTv8HwSendBytes(LT_D_IMU, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_D_IMU, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_PMU:
-            AnoPTv8HwSendBytes(LT_D_PMU, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_D_PMU, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_OF:
-            /* UART5/UB accepts PTV7 input only. */
+            AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_SWJ:
-            AnoPTv8HwSendBytes(LT_D_SWJ, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(swjLinkType, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART1:
-            AnoPTv8HwSendBytes(LT_U1, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U1, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART2:
-            AnoPTv8HwSendBytes(LT_U2, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U2, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART3:
-            AnoPTv8HwSendBytes(LT_U3, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U3, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART4:
-            AnoPTv8HwSendBytes(LT_U4, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U4, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART5:
-            AnoPTv8HwSendBytes(LT_U5, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U5, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART7:
-            AnoPTv8HwSendBytes(LT_U7, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U7, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
 
         case ANOPTV8DEVID_UART8:
-            AnoPTv8HwSendBytes(LT_U8, p->rawBytes, frameLen);
+            AnoPTv8HwSendBytes(LT_U8, p->rawBytes, p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2);
             break;
         }
     }

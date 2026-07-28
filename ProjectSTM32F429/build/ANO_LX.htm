@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\build\ANO_LX.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\build\ANO_LX.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060528: Last Updated: Tue Jul 28 07:00:13 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060528: Last Updated: Tue Jul 28 00:30:10 2026
 <BR><P>
 <H3>Maximum Stack Usage =        440 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -1225,7 +1225,7 @@ Global Symbols
 <BR>[Calls]<UL><LI><a href="#[10c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2c_ReadNByte
 </UL>
 <BR>[Called By]<UL><LI><a href="#[f0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvIna228Init
-<LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
+<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadBusVoltage
 </UL>
 
@@ -1261,11 +1261,15 @@ Global Symbols
 <LI><a href="#[10b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228ReadReg16
 </UL>
 
-<P><STRONG><a name="[116]"></a>ina228_ReadCurrent</STRONG> (Thumb, 6 bytes, Stack size 0 bytes, drvina228.o(.text))
-<BR><BR>[Called By]<UL><LI><a href="#[7d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvIna228GetVals
+<P><STRONG><a name="[114]"></a>ina228_ReadCurrent</STRONG> (Thumb, 86 bytes, Stack size 24 bytes, drvina228.o(.text))
+<BR><BR>[Stack]<UL><LI>Max Depth = 64<LI>Call Chain = ina228_ReadCurrent &rArr; DrvSI2c_ReadNByte &rArr; I2c_Soft_ReadByte
+</UL>
+<BR>[Calls]<UL><LI><a href="#[10c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2c_ReadNByte
+</UL>
+<BR>[Called By]<UL><LI><a href="#[7d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvIna228GetVals
 </UL>
 
-<P><STRONG><a name="[114]"></a>ina228_ReadPower</STRONG> (Thumb, 70 bytes, Stack size 32 bytes, drvina228.o(.text), UNUSED)
+<P><STRONG><a name="[115]"></a>ina228_ReadPower</STRONG> (Thumb, 70 bytes, Stack size 32 bytes, drvina228.o(.text), UNUSED)
 <BR><BR>[Calls]<UL><LI><a href="#[fb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_dmul
 <LI><a href="#[102]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_d2f
 <LI><a href="#[113]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_ui2d
@@ -1275,7 +1279,7 @@ Global Symbols
 <P><STRONG><a name="[f0]"></a>DrvIna228Init</STRONG> (Thumb, 116 bytes, Stack size 24 bytes, drvina228.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 88<LI>Call Chain = DrvIna228Init &rArr; DrvIna228_Reset &rArr; ina228WriteReg16 &rArr; DrvSI2c_WriteNByte &rArr; I2c_Soft_WaitAck &rArr; I2c_Soft_Stop
 </UL>
-<BR>[Calls]<UL><LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
+<BR>[Calls]<UL><LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
 <LI><a href="#[10f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvIna228_Reset
 <LI><a href="#[10d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228WriteReg16
 <LI><a href="#[10b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228ReadReg16
@@ -1283,10 +1287,10 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[76]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;All_Init
 </UL>
 
-<P><STRONG><a name="[7d]"></a>DrvIna228GetVals</STRONG> (Thumb, 24 bytes, Stack size 4 bytes, drvina228.o(.text))
-<BR><BR>[Stack]<UL><LI>Max Depth = 4<LI>Call Chain = DrvIna228GetVals
+<P><STRONG><a name="[7d]"></a>DrvIna228GetVals</STRONG> (Thumb, 24 bytes, Stack size 8 bytes, drvina228.o(.text))
+<BR><BR>[Stack]<UL><LI>Max Depth = 72<LI>Call Chain = DrvIna228GetVals &rArr; ina228_ReadCurrent &rArr; DrvSI2c_ReadNByte &rArr; I2c_Soft_ReadByte
 </UL>
-<BR>[Calls]<UL><LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadCurrent
+<BR>[Calls]<UL><LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadCurrent
 </UL>
 <BR>[Called By]<UL><LI><a href="#[5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Loop_20Hz
 </UL>
@@ -2080,7 +2084,7 @@ Global Symbols
 <BR><BR>[Calls]<UL><LI><a href="#[17c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvBuzzerAdvCtl2
 </UL>
 
-<P><STRONG><a name="[115]"></a>DrvSI2cInit</STRONG> (Thumb, 88 bytes, Stack size 16 bytes, drv_si2c.o(.text))
+<P><STRONG><a name="[116]"></a>DrvSI2cInit</STRONG> (Thumb, 88 bytes, Stack size 16 bytes, drv_si2c.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 40<LI>Call Chain = DrvSI2cInit &rArr; GPIO_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[17d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_delay
@@ -2129,7 +2133,8 @@ Global Symbols
 <LI><a href="#[17f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_Stop
 <LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_Start
 </UL>
-<BR>[Called By]<UL><LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadShuntVoltage
+<BR>[Called By]<UL><LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadCurrent
+<LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadShuntVoltage
 <LI><a href="#[10b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228ReadReg16
 </UL>
 
@@ -2508,7 +2513,7 @@ Global Symbols
 <LI><a href="#[e4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvPwmOutInit
 <LI><a href="#[ee]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvBuzzerInit
 <LI><a href="#[ed]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvAdcInit
-<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
+<LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
 <LI><a href="#[108]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvUart4Init
 </UL>
 
@@ -2518,7 +2523,7 @@ Global Symbols
 <LI><a href="#[f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvRcSbusInit
 <LI><a href="#[dd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvRcPpmInit
 <LI><a href="#[e4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvPwmOutInit
-<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
+<LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
 </UL>
 
 <P><STRONG><a name="[1bc]"></a>GPIO_PinLockConfig</STRONG> (Thumb, 132 bytes, Stack size 16 bytes, stm32f4xx_gpio.o(.text), UNUSED)
@@ -2743,7 +2748,7 @@ Global Symbols
 <LI><a href="#[e4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvPwmOutInit
 <LI><a href="#[ee]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvBuzzerInit
 <LI><a href="#[ed]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvAdcInit
-<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
+<LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
 <LI><a href="#[108]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvUart4Init
 </UL>
 
@@ -4123,7 +4128,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[101]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;my_cos
 <LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;my_sin
 <LI><a href="#[fa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;mx_sin
-<LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
+<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadBusVoltage
 <LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadShuntVoltage
 </UL>
@@ -4146,7 +4151,7 @@ Global Symbols
 <P><STRONG><a name="[113]"></a>__aeabi_ui2d</STRONG> (Thumb, 26 bytes, Stack size 16 bytes, dfltui.o(.text), UNUSED)
 <BR><BR>[Calls]<UL><LI><a href="#[281]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_double_epilogue
 </UL>
-<BR>[Called By]<UL><LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
+<BR>[Called By]<UL><LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadBusVoltage
 </UL>
 
@@ -4181,7 +4186,7 @@ Global Symbols
 <BR><BR>[Calls]<UL><LI><a href="#[284]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_float_round
 </UL>
 <BR>[Called By]<UL><LI><a href="#[101]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;my_cos
-<LI><a href="#[114]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
+<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadPower
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadBusVoltage
 <LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ina228_ReadShuntVoltage
 </UL>
@@ -4423,7 +4428,7 @@ Local Symbols
 <LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_Ack
 <LI><a href="#[17f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_Stop
 <LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2c_Soft_Start
-<LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
+<LI><a href="#[116]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DrvSI2cInit
 </UL>
 
 <P><STRONG><a name="[17e]"></a>I2c_Soft_Start</STRONG> (Thumb, 92 bytes, Stack size 8 bytes, drv_si2c.o(.text))
