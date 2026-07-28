@@ -86,10 +86,12 @@ typedef union
 #define LT_USBCDC	((uint16_t)1<<7)
 #define LT_COUNT	8	//连接方式数量，这里必须与运行匿名协议的连接方式数量对应，使用此数量定义接收缓冲区数量，即一个连接方式对应一个接收缓冲区
 
+#define LT_NONE	((uint16_t)0)
 #define LT_D_IMU	LT_U1
 #define LT_D_PMU	LT_U2
-#define LT_D_OF		LT_U4
-#define LT_D_SWJ	LT_U5
+// UB is PTV7 input only; there is no direct PTv8 link.
+#define LT_D_OF		LT_NONE
+#define LT_D_SWJ	(LT_U2 | LT_U3 | LT_U8)
 
 #include "AnoPTv8Run.h"
 #include "AnoPTv8Par.h"
