@@ -217,7 +217,7 @@ uint8_t LX_MotorTestStart(uint8_t motorMask, uint16_t pulseUs, uint16_t duration
 {
     uint8_t i;
 
-    if (motorMask == 0U || (motorMask & (motorMask - 1U)) != 0U || pulseUs < 1000U || pulseUs > 1100U || durationMs == 0U || durationMs > 1000U)
+    if (motorMask == 0U || (motorMask & (motorMask - 1U)) != 0U || pulseUs < 1000U || pulseUs > 1200U || durationMs == 0U || durationMs > 1000U)
     {
         return 0;
     }
@@ -245,15 +245,29 @@ void LX_MotorTestStop(void)
 static inline void ESC_Output(uint8_t unlocked)
 {
     static int16_t pwm[8];
-    //
-    pwm[0] = pwm_to_esc.pwm_m1 * 0.1f;
-    pwm[1] = pwm_to_esc.pwm_m2 * 0.1f;
-    pwm[2] = pwm_to_esc.pwm_m3 * 0.1f;
-    pwm[3] = pwm_to_esc.pwm_m4 * 0.1f;
-    pwm[4] = pwm_to_esc.pwm_m5 * 0.1f;
-    pwm[5] = pwm_to_esc.pwm_m6 * 0.1f;
-    pwm[6] = pwm_to_esc.pwm_m7 * 0.1f;
-    pwm[7] = pwm_to_esc.pwm_m8 * 0.1f;
+    // LX X4 logical motors use physical PWM outputs 2, 4, 6 and 8.
+    if (ESC_TYPE == 0)
+    {
+        pwm[0] = 0;
+        pwm[1] = pwm_to_esc.pwm_m1 * 0.1f;
+        pwm[2] = 0;
+        pwm[3] = pwm_to_esc.pwm_m2 * 0.1f;
+        pwm[4] = 0;
+        pwm[5] = pwm_to_esc.pwm_m3 * 0.1f;
+        pwm[6] = 0;
+        pwm[7] = pwm_to_esc.pwm_m4 * 0.1f;
+    }
+    else
+    {
+        pwm[0] = pwm_to_esc.pwm_m1 * 0.1f;
+        pwm[1] = pwm_to_esc.pwm_m2 * 0.1f;
+        pwm[2] = pwm_to_esc.pwm_m3 * 0.1f;
+        pwm[3] = pwm_to_esc.pwm_m4 * 0.1f;
+        pwm[4] = pwm_to_esc.pwm_m5 * 0.1f;
+        pwm[5] = pwm_to_esc.pwm_m6 * 0.1f;
+        pwm[6] = pwm_to_esc.pwm_m7 * 0.1f;
+        pwm[7] = pwm_to_esc.pwm_m8 * 0.1f;
+    }
 
     if (motor_test_time_ms > 0U)
     {

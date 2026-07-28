@@ -191,23 +191,7 @@ void AnoPTv8CmdInit(void)
 #include "DataTransfer.h"
 #include "Drv_AnoOf.h"
 
-static uint8_t AnoPTv8IsLxTelemetryFrame(const uint8_t frameid)
-{
-    switch (frameid)
-    {
-    case 0x01:
-    case 0x03:
-    case 0x04:
-    case 0x05:
-    case 0x06:
-    case 0x07:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
-static void AnoPTv8MirrorLxTelemetry(const _un_frame_v8 *p)
+static void AnoPTv8MirrorLxFrame(const _un_frame_v8 *p)
 {
     static _un_frame_v8 mirrorFrame;
     const uint16_t frameLen = p->frame.datalen + ANOPTV8_FRAME_HEADLEN + 2;
@@ -222,8 +206,10 @@ void AnoPTv8FrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
 {
     if (ANOPTV8DEVID_LXIMU == p->frame.sdevid) {
         AnoDTLxFrameAnl(linktype, p);
-        if ((linktype & LT_U1) && p->frame.ddevid == ANOPTV8DEVID_MY && AnoPTv8IsLxTelemetryFrame(p->frame.frameid)) {
-            AnoPTv8MirrorLxTelemetry(p);
+        if ((linktype & LT_U1) &&
+            (p->frame.ddevid == ANOPTV8DEVID_MY ||
+             p->frame.ddevid == ANOPTV8DEVID_ALL)) {
+            AnoPTv8MirrorLxFrame(p);
         }
     } else if (ANOPTV8DEVID_SWJ == p->frame.sdevid) {
         AnoDTMotorTestFrameAnl(linktype, p);

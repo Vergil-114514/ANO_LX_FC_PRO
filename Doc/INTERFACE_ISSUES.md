@@ -1,18 +1,19 @@
 # Interface Investigation Log
 
-Updated: 2026-07-28
+Updated: 2026-07-29
 
 This document records interface constraints and routing changes for the current
 hardware configuration.
 
 ## Resolved: multi-link SWJ replies
 
-SWJ output now uses a fixed mask for UD/UART2, UA/UART3, and UG/UART8. LX IMU
-telemetry and replies addressed to SWJ are mirrored to all three host links,
-instead of selecting one global return path.
+SWJ output now uses a fixed mask for UD/UART2, UA/UART3, UG/UART8, and native
+USB CDC. Valid LX IMU frames received on UART1 and addressed to MCU or the
+broadcast address, plus replies addressed to SWJ, are mirrored to all host
+links instead of selecting one global return path.
 
 SWJ broadcast commands are forwarded only to UART1/LX IMU. They are not sent to
-GPS on UART4, PTV7 input on UART5, LORA input on UART7, USB CDC, or another host link.
+GPS on UART4, PTV7 input on UART5, LORA input on UART7, or another host link.
 
 ## UB PTV7 direct-query limitation
 
