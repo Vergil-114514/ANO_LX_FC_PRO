@@ -4,6 +4,7 @@
 void AnoPTv8CalFrameCheck(_un_frame_v8 *p);
 
 uint8_t AnoPTv8SendBuf(const uint16_t linktype, const uint8_t daddr, const uint8_t fid, const uint8_t priority, const uint8_t *buf, const uint16_t len);
+uint8_t AnoPTv8SendBufFrom(const uint16_t linktype, const uint8_t saddr, const uint8_t daddr, const uint8_t fid, const uint8_t priority, const uint8_t *buf, const uint16_t len);
 
 void AnoPTv8SendCheck(const uint16_t linktype, const uint8_t daddr, const uint8_t id, const uint8_t sc, const uint8_t ac);
 void AnoPTv8SendDevInfo(const uint16_t linktype, const uint8_t daddr);

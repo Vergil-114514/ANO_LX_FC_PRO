@@ -46,10 +46,33 @@ void DrvAnoOFCheckState_ptv7(float dT_s)
 	}
 }
 
+static int16_t DrvAnoOFReadS16Le(const uint8_t *data)
+{
+	return (int16_t)((uint16_t)data[0] | ((uint16_t)data[1] << 8));
+}
+
+static uint32_t DrvAnoOFReadU32Le(const uint8_t *data)
+{
+	return (uint32_t)data[0] |
+	       ((uint32_t)data[1] << 8) |
+	       ((uint32_t)data[2] << 16) |
+	       ((uint32_t)data[3] << 24);
+}
+
+static void DrvAnoOFUpdateDisplay(const uint8_t type, const int16_t dx,
+	const int16_t dy, const uint8_t quality)
+{
+	ano_of.of_display_type = type;
+	ano_of.of_display_dx = dx;
+	ano_of.of_display_dy = dy;
+	ano_of.of_quality = quality;
+	ano_of.of_display_update_cnt++;
+}
+
 static void DrvAnoOFDataAnl_ptv7(uint8_t *data, uint8_t len)
 {
 	u8 check_sum1 = 0, check_sum2 = 0;
-	if (*(data + 3) != (len - 6)) //判断数据长度是否正确
+	if ((len < 6U) || (*(data + 3) != (len - 6U))) //判断数据长度是否正确
 		return;
 	for (u8 i = 0; i < len - 2; i++)
 	{
@@ -58,64 +81,64 @@ static void DrvAnoOFDataAnl_ptv7(uint8_t *data, uint8_t len)
 	}
 	if ((check_sum1 != *(data + len - 2)) || (check_sum2 != *(data + len - 1))) //判断sum校验
 		return;
+	check_time_ms[0] = 0;
 	//================================================================================
 
 	if (*(data + 2) == 0X51) //光流信息
 	{
-		if (*(data + 4) == 0) //原始光流信息
+		if ((*(data + 3) >= 5U) && (*(data + 4) == 0)) //原始光流信息
 		{
 			ano_of.of0_sta = *(data + 5);
 			ano_of.of0_dx = *(data + 6);
 			ano_of.of0_dy = *(data + 7);
-			ano_of.of_quality = *(data + 8);
+			DrvAnoOFUpdateDisplay(0U, ano_of.of0_dx, ano_of.of0_dy, *(data + 8));
 		}
-		else if (*(data + 4) == 1) //高度融合后光流信息
+		else if ((*(data + 3) >= 7U) && (*(data + 4) == 1)) //高度融合后光流信息
 		{
 			ano_of.of1_sta = *(data + 5);
-			ano_of.of1_dx = *((s16 *)(data + 6));
-			ano_of.of1_dy = *((s16 *)(data + 8));
-			ano_of.of_quality = *(data + 10);
+			ano_of.of1_dx = DrvAnoOFReadS16Le(data + 6);
+			ano_of.of1_dy = DrvAnoOFReadS16Le(data + 8);
+			DrvAnoOFUpdateDisplay(1U, ano_of.of1_dx, ano_of.of1_dy, *(data + 10));
 			//
 			check_time_ms[1] = 0;
 			ano_of.of_update_cnt++;
 		}
-		else if (*(data + 4) == 2) //惯导融合后光流信息
+		else if ((*(data + 3) >= 15U) && (*(data + 4) == 2)) //惯导融合后光流信息
 		{
 			ano_of.of2_sta = *(data + 5);
-			ano_of.of2_dx = *((s16 *)(data + 6));
-			ano_of.of2_dy = *((s16 *)(data + 8));
-			ano_of.of2_dx_fix = *((s16 *)(data + 10));
-			ano_of.of2_dy_fix = *((s16 *)(data + 12));
-			ano_of.intergral_x = *((s16 *)(data + 14));
-			ano_of.intergral_y = *((s16 *)(data + 16));
-			ano_of.of_quality = *(data + 18);
-			//
+			ano_of.of2_dx = DrvAnoOFReadS16Le(data + 6);
+			ano_of.of2_dy = DrvAnoOFReadS16Le(data + 8);
+			ano_of.of2_dx_fix = DrvAnoOFReadS16Le(data + 10);
+			ano_of.of2_dy_fix = DrvAnoOFReadS16Le(data + 12);
+			ano_of.intergral_x = DrvAnoOFReadS16Le(data + 14);
+			ano_of.intergral_y = DrvAnoOFReadS16Le(data + 16);
+			DrvAnoOFUpdateDisplay(2U, ano_of.of2_dx, ano_of.of2_dy, *(data + 18));
 		}
 	}
-	else if (*(data + 2) == 0X34) //高度信息
+	else if ((*(data + 2) == 0X34) && (*(data + 3) >= 7U)) //高度信息
 	{
-		ano_of.of_alt_cm = *((u32 *)(data + 7));
+		ano_of.of_alt_cm = DrvAnoOFReadU32Le(data + 7);
 		//
 		check_time_ms[2] = 0;
 		ano_of.alt_update_cnt++;
 	}
-	else if (*(data + 2) == 0X01) //惯性数据
+	else if ((*(data + 2) == 0X01) && (*(data + 3) >= 12U)) //惯性数据
 	{
-		ano_of.acc_data_x = *((s16 *)(data + 4));
-		ano_of.acc_data_y = *((s16 *)(data + 6));
-		ano_of.acc_data_z = *((s16 *)(data + 8));
-		ano_of.gyr_data_x = *((s16 *)(data + 10));
-		ano_of.gyr_data_y = *((s16 *)(data + 12));
-		ano_of.gyr_data_z = *((s16 *)(data + 14));
+		ano_of.acc_data_x = DrvAnoOFReadS16Le(data + 4);
+		ano_of.acc_data_y = DrvAnoOFReadS16Le(data + 6);
+		ano_of.acc_data_z = DrvAnoOFReadS16Le(data + 8);
+		ano_of.gyr_data_x = DrvAnoOFReadS16Le(data + 10);
+		ano_of.gyr_data_y = DrvAnoOFReadS16Le(data + 12);
+		ano_of.gyr_data_z = DrvAnoOFReadS16Le(data + 14);
 		//shock_sta+16
 	}
-	else if (*(data + 2) == 0X04) //姿态信息
+	else if ((*(data + 2) == 0X04) && (*(data + 3) >= 8U)) //姿态信息
 	{
 		//四元数格式
-		ano_of.quaternion[0] = (*((s16 *)(data + 4))) * 0.0001f;
-		ano_of.quaternion[1] = (*((s16 *)(data + 6))) * 0.0001f;
-		ano_of.quaternion[2] = (*((s16 *)(data + 8))) * 0.0001f;
-		ano_of.quaternion[3] = (*((s16 *)(data + 10))) * 0.0001f;
+		ano_of.quaternion[0] = DrvAnoOFReadS16Le(data + 4) * 0.0001f;
+		ano_of.quaternion[1] = DrvAnoOFReadS16Le(data + 6) * 0.0001f;
+		ano_of.quaternion[2] = DrvAnoOFReadS16Le(data + 8) * 0.0001f;
+		ano_of.quaternion[3] = DrvAnoOFReadS16Le(data + 10) * 0.0001f;
 	}
 }
 

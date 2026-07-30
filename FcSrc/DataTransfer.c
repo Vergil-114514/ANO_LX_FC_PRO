@@ -3,9 +3,11 @@
 #include "LX_LowLevelFunc.h"
 #include "Drv_RcIn.h"
 #include "LX_ExtSensor.h"
+#include "Drv_AnoOf.h"
 #include "Drv_led.h"
 #include "LX_FcState.h"
 #include "Drv_Uart.h"
+#include "Drv_UwbMini5.h"
 #include "AnoPTv8.h"
 #include "AnoPTv8Run.h"
 /*==========================================================================
@@ -31,6 +33,8 @@ const _st_autoSendInfo ASFInfo[] =
     {0x30, 0},
     {0x33, 0},
     {0x34, 0},
+    {0x31, 0},
+    {0x32, 0},
     {0x41, 0},
     {0xE0, 0},
 };
@@ -77,6 +81,13 @@ void AnoDTLxFrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
     break;
     case 0x20:
     {
+        if ((linktype != LT_U1) ||
+            (p->frame.ddevid != ANOPTV8DEVID_MY) ||
+            (p->frame.datalen != 16U))
+        {
+            break;
+        }
+
         //PWM数据
         pwm_to_esc.pwm_m1 = *((uint16_t  *)(p->frame.data));
         pwm_to_esc.pwm_m2 = *((uint16_t  *)(p->frame.data + 2));
@@ -86,6 +97,7 @@ void AnoDTLxFrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
         pwm_to_esc.pwm_m6 = *((uint16_t  *)(p->frame.data + 10));
         pwm_to_esc.pwm_m7 = *((uint16_t  *)(p->frame.data + 12));
         pwm_to_esc.pwm_m8 = *((uint16_t  *)(p->frame.data + 14));
+        LX_EscPwmFrameReceived();
     }
     break;
     case 0x0F:
@@ -190,6 +202,25 @@ void AnoDTLxFrameSend(const uint8_t fid)
         uint8_t _sbuf[7];
         memcpy(_sbuf,ext_sens.gen_dis.byte,7);
         AnoPTv8SendBuf(LT_D_IMU, ANOPTV8DEVID_LXIMU, fid, ANOPTV8TXPRI_DATA, _sbuf, sizeof(_sbuf));
+    }
+    break;
+    case 0x31:
+    {
+        uint8_t _sbuf[6];
+        _sbuf[0] = ano_of.of_display_type;
+        memcpy(&_sbuf[1], &ano_of.of_display_dx, 2);
+        memcpy(&_sbuf[3], &ano_of.of_display_dy, 2);
+        _sbuf[5] = ano_of.of_quality;
+        AnoPTv8SendBufFrom(LT_D_SWJ, ANOPTV8DEVID_LXIMU, ANOPTV8DEVID_SWJ, fid, ANOPTV8TXPRI_DATA, _sbuf, sizeof(_sbuf));
+    }
+    break;
+    case 0x32: //UWB position data in mm, host display only
+    {
+        uint8_t _sbuf[12];
+        memcpy(&_sbuf[0], &UwbMini5.position_mm[0], 4);
+        memcpy(&_sbuf[4], &UwbMini5.position_mm[1], 4);
+        memcpy(&_sbuf[8], &UwbMini5.position_mm[2], 4);
+        AnoPTv8SendBufFrom(LT_D_SWJ, ANOPTV8DEVID_LXIMU, ANOPTV8DEVID_SWJ, fid, ANOPTV8TXPRI_DATA, _sbuf, sizeof(_sbuf));
     }
     break;
     case 0x40: //遥控数据帧

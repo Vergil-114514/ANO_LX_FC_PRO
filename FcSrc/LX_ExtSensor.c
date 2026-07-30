@@ -17,6 +17,7 @@
 ===========================================================================*/
 #include "LX_ExtSensor.h"
 #include "Drv_AnoOf.h"
+#include "Drv_UwbMini5.h"
 #include "DataTransfer.h"
 
 _fc_ext_sensor_st ext_sens;
@@ -24,7 +25,7 @@ _fc_ext_sensor_st ext_sens;
 //这里把光流数据打包成通用速度传感器数据
 static inline void General_Velocity_Data_Handle()
 {
-    static uint8_t of_update_cnt, of_alt_update_cnt;
+    static uint8_t of_update_cnt, of_display_update_cnt, of_alt_update_cnt;
     static uint8_t dT_ms = 0;
     //每一毫秒dT_ms+1，用来判断是否长时间无数据
     if (dT_ms != 255)
@@ -46,6 +47,11 @@ static inline void General_Velocity_Data_Handle()
             ext_sens.gen_vel.st_data.hca_velocity_cmps[0] = 0x8000;
             ext_sens.gen_vel.st_data.hca_velocity_cmps[1] = 0x8000;
         }
+    }
+    if (of_display_update_cnt != ano_of.of_display_update_cnt)
+    {
+        of_display_update_cnt = ano_of.of_display_update_cnt;
+        AnoDTLxFrameSendTrigger(0x31);
     }
     if (of_alt_update_cnt != ano_of.alt_update_cnt)
     {
@@ -76,10 +82,23 @@ static inline void General_Distance_Data_Handle()
     }
 }
 
+static inline void Uwb_Position_Data_Handle()
+{
+    static uint8_t uwb_position_update_cnt;
+
+    if ((UwbMini5.valid != 0U) && (uwb_position_update_cnt != UwbMini5.position_update_cnt))
+    {
+        uwb_position_update_cnt = UwbMini5.position_update_cnt;
+        AnoDTLxFrameSendTrigger(0x32);
+    }
+}
+
 void LX_FC_EXT_Sensor_Task(float dT_s) //1ms
 {
     //
     General_Velocity_Data_Handle();
     //
     General_Distance_Data_Handle();
+    //
+    Uwb_Position_Data_Handle();
 }

@@ -12,3 +12,6 @@
 /ProjectSTM32F429/JLinkLog.txt
 /AT32F415_Remote_Controller
 /E06_uart_lora3a22_demo
+
+# Local reference files
+/tmp/

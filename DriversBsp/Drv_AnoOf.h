@@ -11,11 +11,15 @@ typedef struct
 	//
 	uint8_t of_update_cnt;  //光流数据更新计数。
 	uint8_t alt_update_cnt; //高度数据更新计数。
+	uint8_t of_display_update_cnt; //供上位机显示的光流数据更新计数。
 	//
 	uint8_t link_sta; //连接状态：0，未连接。1，已连接。
 	uint8_t work_sta; //工作状态：0，异常。1，正常
 	//
 	uint8_t of_quality;
+	uint8_t of_display_type;
+	int16_t of_display_dx;
+	int16_t of_display_dy;
 	//
 	uint8_t of0_sta;
 	int8_t of0_dx;

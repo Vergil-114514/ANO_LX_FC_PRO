@@ -31,6 +31,14 @@ _sticks_fun_st sti_fun;
 #define TOE_IN \
 	(rc_in.rc_ch.st_data.ch_[ch_4_yaw] > 1900 && rc_in.rc_ch.st_data.ch_[ch_2_pit] < 1100 && rc_in.rc_ch.st_data.ch_[ch_3_thr] < 1100 && rc_in.rc_ch.st_data.ch_[ch_1_rol] < 1100)
 
+//美国手，放宽的外八解锁条件
+#define TOE_OUT_UNLOCK \
+	(rc_in.rc_ch.st_data.ch_[ch_1_rol] > 1800 && rc_in.rc_ch.st_data.ch_[ch_2_pit] < 1200 && rc_in.rc_ch.st_data.ch_[ch_3_thr] < 1200 && rc_in.rc_ch.st_data.ch_[ch_4_yaw] < 1200)
+
+//美国手，放宽的内八解锁条件
+#define TOE_IN_UNLOCK \
+	(rc_in.rc_ch.st_data.ch_[ch_4_yaw] > 1800 && rc_in.rc_ch.st_data.ch_[ch_2_pit] < 1200 && rc_in.rc_ch.st_data.ch_[ch_3_thr] < 1200 && rc_in.rc_ch.st_data.ch_[ch_1_rol] < 1200)
+
 //美国手，左下+左下
 #define LD_LD \
 	(rc_in.rc_ch.st_data.ch_[ch_4_yaw] < 1100 && rc_in.rc_ch.st_data.ch_[ch_2_pit] < 1100 && rc_in.rc_ch.st_data.ch_[ch_3_thr] < 1100 && rc_in.rc_ch.st_data.ch_[ch_1_rol] < 1100)
@@ -45,11 +53,11 @@ _sticks_fun_st sti_fun;
 #define STICKS_CALI_MAG_REQ (RD_RD)
 
 // 摇杆解锁条件requirement
-#define STICKS_UNLOCK_REQ (TOE_OUT || TOE_IN)
+#define STICKS_UNLOCK_REQ (TOE_OUT_UNLOCK || TOE_IN_UNLOCK)
 // 摇杆上锁条件
-#define STICKS_LOCK_REQ (STICKS_UNLOCK_REQ)
+#define STICKS_LOCK_REQ (TOE_OUT || TOE_IN)
 // 解锁持续时间,毫秒
-#define UNLOCK_HOLD_TIME_MS (1000)
+#define UNLOCK_HOLD_TIME_MS (500)
 // 上锁持续时间,毫秒
 #define LOCK_HOLD_TIME_MS (300)
 // 当前解锁/上锁状态

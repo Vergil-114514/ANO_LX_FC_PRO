@@ -63,10 +63,10 @@ void GPS_Data_Prepare_Task(uint8_t dT_ms)
     {
         sat_receive_updata = 0;
         uint16_t _dlen = (uint16_t)UbxRxBuf[4] + ((uint16_t)UbxRxBuf[5] << 8);
-        uint8_t _svn = (_dlen - 8) / 12;
 
-        if (((_dlen - 8) % 12) == 0 && _dlen >= 8)
+        if ((_dlen >= 8U) && (((_dlen - 8U) % 12U) == 0U))
         {
+            uint8_t _svn = (_dlen - 8U) / 12U;
             uint8_t numSVinView = UbxRxBuf[11];
 
             for (int i = 0; i < _svn; i++)
@@ -231,11 +231,17 @@ void UBLOX_M8_GPS_Data_Receive(const uint8_t linktype, const uint8_t Data)
     {
         UbxRxBuf[state] = Data;
         state = 6;
-        protocol_length = protocol_length_t + (Data << 8);
+        protocol_length = (uint16_t)protocol_length_t + ((uint16_t)Data << 8);
+
+        if (protocol_length > (UBX_BUF_NUM - 8U))
+        {
+            state = 0;
+            return;
+        }
 
         if (protocol_id == 0x07)
         {
-            if (protocol_length > 100)
+            if ((protocol_length > 100U) || (protocol_length < sizeof(_UBXPVT_st)))
             {
                 state = 0;
             }
@@ -247,11 +253,6 @@ void UBLOX_M8_GPS_Data_Receive(const uint8_t linktype, const uint8_t Data)
         }
         else if (protocol_id == 0x35 || protocol_id == 0x30)
         {
-            if (protocol_length > 500)
-            {
-                state = 0;
-            }
-
             if (sat_receive_updata)
             {
                 state = 0;

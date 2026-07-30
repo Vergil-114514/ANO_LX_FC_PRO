@@ -566,6 +566,16 @@
               <FilePath>..\DriversBsp\Drv_UbloxGPS.h</FilePath>
             </File>
             <File>
+              <FileName>Drv_UwbMini5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\DriversBsp\Drv_UwbMini5.c</FilePath>
+            </File>
+            <File>
+              <FileName>Drv_UwbMini5.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\DriversBsp\Drv_UwbMini5.h</FilePath>
+            </File>
+            <File>
               <FileName>DrvAnoOF_ptv7.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\DriversBsp\DrvAnoOF_ptv7.c</FilePath>

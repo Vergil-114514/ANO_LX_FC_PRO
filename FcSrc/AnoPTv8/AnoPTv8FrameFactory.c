@@ -31,7 +31,7 @@ void AnoPTv8CalFrameCheck(_un_frame_v8 *p)
 通用函数，可以方便的发送字节数组
 */
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-uint8_t AnoPTv8SendBuf(const uint16_t linktype, const uint8_t daddr, const uint8_t fid, const uint8_t priority, const uint8_t *buf, const uint16_t len)
+uint8_t AnoPTv8SendBufFrom(const uint16_t linktype, const uint8_t saddr, const uint8_t daddr, const uint8_t fid, const uint8_t priority, const uint8_t *buf, const uint16_t len)
 {
     uint8_t _cnt = 0;
     int bufindex = AnoPTv8GetFreeTxBufIndex(priority);
@@ -41,7 +41,7 @@ uint8_t AnoPTv8SendBuf(const uint16_t linktype, const uint8_t daddr, const uint8
         AnoPTv8TxBuf[bufindex].used = 1;
 		AnoPTv8TxBuf[bufindex].priority = priority;
         AnoPTv8TxBuf[bufindex].dataBuf.frame.head = ANOPTV8_FRAME_HEAD;
-        AnoPTv8TxBuf[bufindex].dataBuf.frame.sdevid = ANOPTV8DEVID_MY;
+        AnoPTv8TxBuf[bufindex].dataBuf.frame.sdevid = saddr;
         AnoPTv8TxBuf[bufindex].dataBuf.frame.ddevid = daddr;
         AnoPTv8TxBuf[bufindex].dataBuf.frame.frameid = fid;
 
@@ -60,6 +60,11 @@ uint8_t AnoPTv8SendBuf(const uint16_t linktype, const uint8_t daddr, const uint8
     }
 
     return 0;
+}
+
+uint8_t AnoPTv8SendBuf(const uint16_t linktype, const uint8_t daddr, const uint8_t fid, const uint8_t priority, const uint8_t *buf, const uint16_t len)
+{
+    return AnoPTv8SendBufFrom(linktype, ANOPTV8DEVID_MY, daddr, fid, priority, buf, len);
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /*

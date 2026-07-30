@@ -10,6 +10,7 @@
 #include "AnoPTv8.h"
 #include "DataTransfer.h"
 #include "Drv_UbloxGPS.h"
+#include "Drv_UwbMini5.h"
 #include "Drv_AnoOf.h"
 #include "DrvAnoOF_ptv7.h"
 #include "Drv_RcIn.h"
@@ -27,13 +28,152 @@ void NoUse(const uint8_t type, const uint8_t data) {}
 #define U1GetOneByte	AnoPTv8HwRecvByte
 #define U2GetOneByte	AnoPTv8HwRecvByte
 #define U3GetOneByte	AnoPTv8HwRecvByte
+#if NAV_INPUT_UWB_MINI5
+#define U4GetOneByte	DrvUwbMini5RxOneByte
+#else
 #define U4GetOneByte	UBLOX_M8_GPS_Data_Receive
+#endif
 #define U5GetOneByte	DrvAnoOFGetOneByte_ptv7
 #define U7GetOneByte	DrvRcLoraRxOneByte
 #define U8GetOneByte	AnoPTv8HwRecvByte
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+volatile _drv_uart_stats_st DrvUartStats[9];
+
+static uint8_t drvUartTxQueue(volatile uint8_t *txBuf, const uint16_t txBufSize,
+                               volatile uint16_t *txInCnt, volatile uint16_t *txOutCnt,
+                               const uint8_t *dataToSend, const uint8_t dataNum,
+                               volatile _drv_uart_stats_st *stats)
+{
+    uint32_t primask;
+    uint16_t txIn;
+    uint16_t txOut;
+    uint16_t used;
+    uint16_t freeSize;
+
+    if (dataNum == 0U)
+    {
+        return 1U;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
+    txIn = *txInCnt;
+    txOut = *txOutCnt;
+    if (txIn >= txOut)
+    {
+        used = txIn - txOut;
+    }
+    else
+    {
+        used = txBufSize - txOut + txIn;
+    }
+    freeSize = txBufSize - used - 1U;
+
+    if (dataNum > freeSize)
+    {
+        stats->tx_dropped_frames++;
+        stats->tx_dropped_bytes += dataNum;
+        __set_PRIMASK(primask);
+        return 0U;
+    }
+
+    for (uint8_t i = 0U; i < dataNum; i++)
+    {
+        txBuf[txIn++] = dataToSend[i];
+        if (txIn >= txBufSize)
+        {
+            txIn = 0U;
+        }
+    }
+    *txInCnt = txIn;
+    stats->tx_queued_bytes += dataNum;
+
+    __set_PRIMASK(primask);
+    return 1U;
+}
+
+static void drvUartRxStore(volatile uint8_t *rxBuf, const uint16_t rxBufSize,
+                           volatile uint16_t *rxInCnt, volatile uint16_t *rxOutCnt,
+                           const uint8_t data, volatile _drv_uart_stats_st *stats)
+{
+    uint16_t rxIn = *rxInCnt;
+    uint16_t nextRxIn = rxIn + 1U;
+
+    if (nextRxIn >= rxBufSize)
+    {
+        nextRxIn = 0U;
+    }
+
+    if (nextRxIn == *rxOutCnt)
+    {
+        stats->rx_dropped_bytes++;
+        return;
+    }
+
+    rxBuf[rxIn] = data;
+    *rxInCnt = nextRxIn;
+    stats->rx_bytes++;
+}
+
+static uint8_t drvUartTxLoad(volatile uint8_t *txBuf, const uint16_t txBufSize,
+                             volatile uint16_t *txInCnt, volatile uint16_t *txOutCnt,
+                             uint8_t *data, volatile _drv_uart_stats_st *stats)
+{
+    uint16_t txOut;
+
+    if (*txOutCnt == *txInCnt)
+    {
+        return 0U;
+    }
+
+    txOut = *txOutCnt;
+    *data = txBuf[txOut++];
+    if (txOut >= txBufSize)
+    {
+        txOut = 0U;
+    }
+    *txOutCnt = txOut;
+    stats->tx_sent_bytes++;
+    return 1U;
+}
+
+static void drvUartIRQ(USART_TypeDef *uart, volatile uint8_t *txBuf, const uint16_t txBufSize,
+                       volatile uint16_t *txInCnt, volatile uint16_t *txOutCnt,
+                       volatile uint8_t *rxBuf, const uint16_t rxBufSize,
+                       volatile uint16_t *rxInCnt, volatile uint16_t *rxOutCnt,
+                       volatile _drv_uart_stats_st *stats)
+{
+    const uint32_t status = uart->SR;
+    uint8_t data;
+
+    if (status & (USART_SR_ORE | USART_SR_NE | USART_SR_FE | USART_SR_PE))
+    {
+        data = (uint8_t)uart->DR;
+        (void)data;
+        stats->rx_hardware_errors++;
+    }
+    else if (status & USART_SR_RXNE)
+    {
+        data = (uint8_t)uart->DR;
+        drvUartRxStore(rxBuf, rxBufSize, rxInCnt, rxOutCnt, data, stats);
+    }
+
+    if ((status & USART_SR_TXE) && (uart->CR1 & USART_CR1_TXEIE))
+    {
+        if (drvUartTxLoad(txBuf, txBufSize, txInCnt, txOutCnt, &data, stats))
+        {
+            uart->DR = data;
+        }
+        else
+        {
+            uart->CR1 &= ~USART_CR1_TXEIE;
+        }
+    }
+}
+
 //====uart1
-#define U1RXBUFSIZE		256
+#define U1RXBUFSIZE		512
 #define U1TXBUFSIZE		2048
 volatile uint8_t 	U1TxBuf[U1TXBUFSIZE];
 volatile uint16_t 	U1TxInCnt = 0;
@@ -102,15 +242,9 @@ void DrvUart1Init(uint32_t br_num)
 
 void DrvUart1SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U1TxBuf[U1TxInCnt++] = *(DataToSend + i);
-        if(U1TxInCnt >= U1TXBUFSIZE)
-            U1TxInCnt = 0;
-    }
-
-    if (!(USART1->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U1TxBuf, U1TXBUFSIZE, &U1TxInCnt, &U1TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[1]) &&
+        !(USART1->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(USART1, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -118,9 +252,8 @@ void DrvUart1SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU1GetByte(uint8_t data)
 {
-    U1RxBuf[U1RxInCnt++] = data;
-    if(U1RxInCnt >= U1RXBUFSIZE)
-        U1RxInCnt = 0;
+    drvUartRxStore(U1RxBuf, U1RXBUFSIZE, &U1RxInCnt, &U1RxoutCnt,
+                   data, &DrvUartStats[1]);
 }
 void drvU1DataCheck(void)
 {
@@ -133,31 +266,8 @@ void drvU1DataCheck(void)
 }
 void Usart1_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (USART1->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = USART1->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(USART1, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(USART1, USART_IT_RXNE); //清除中断标志
-        com_data = USART1->DR;
-        drvU1GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(USART1, USART_IT_TXE))
-    {
-        USART1->DR = U1TxBuf[U1TxOutCnt++]; //写DR清除中断标志
-		if(U1TxOutCnt >= U1TXBUFSIZE)
-            U1TxOutCnt = 0;
-        if (U1TxOutCnt == U1TxInCnt)
-        {
-            USART1->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-        
-    }
+    drvUartIRQ(USART1, U1TxBuf, U1TXBUFSIZE, &U1TxInCnt, &U1TxOutCnt,
+               U1RxBuf, U1RXBUFSIZE, &U1RxInCnt, &U1RxoutCnt, &DrvUartStats[1]);
 }
 
 
@@ -231,14 +341,9 @@ void DrvUart2Init(uint32_t br_num)
 
 void DrvUart2SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U2TxBuf[U2TxInCnt++] = *(DataToSend + i);
-        if(U2TxInCnt >= U2TXBUFSIZE)
-            U2TxInCnt = 0;
-    }
-    if (!(USART2->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U2TxBuf, U2TXBUFSIZE, &U2TxInCnt, &U2TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[2]) &&
+        !(USART2->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(USART2, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -246,9 +351,8 @@ void DrvUart2SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU2GetByte(uint8_t data)
 {
-    U2RxBuf[U2RxInCnt++] = data;
-    if(U2RxInCnt >= U2RXBUFSIZE)
-        U2RxInCnt = 0;
+    drvUartRxStore(U2RxBuf, U2RXBUFSIZE, &U2RxInCnt, &U2RxoutCnt,
+                   data, &DrvUartStats[2]);
 }
 void drvU2DataCheck(void)
 {
@@ -261,40 +365,19 @@ void drvU2DataCheck(void)
 }
 void Usart2_IRQ(void)
 {
-    uint8_t com_data;
-    if (USART2->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = USART2->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(USART2, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(USART2, USART_IT_RXNE); //清除中断标志
-        com_data = USART2->DR;
-        drvU2GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(USART2, USART_IT_TXE))
-    {
-        USART2->DR = U2TxBuf[U2TxOutCnt++]; //写DR清除中断标志
-        if(U2TxOutCnt >= U2TXBUFSIZE)
-            U2TxOutCnt = 0;
-        if (U2TxOutCnt == U2TxInCnt)
-        {
-            USART2->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(USART2, U2TxBuf, U2TXBUFSIZE, &U2TxInCnt, &U2TxOutCnt,
+               U2RxBuf, U2RXBUFSIZE, &U2RxInCnt, &U2RxoutCnt, &DrvUartStats[2]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart3
 #define U3RXBUFSIZE		256
-#define U3TXBUFSIZE		256
-uint8_t 	U3TxBuf[U3TXBUFSIZE];
-uint16_t 	U3TxInCnt = 0;
-uint16_t 	U3TxOutCnt = 0;
-uint8_t 	U3RxBuf[U3RXBUFSIZE];
-uint16_t 	U3RxInCnt = 0;
-uint16_t 	U3RxoutCnt = 0;
+#define U3TXBUFSIZE		2048
+volatile uint8_t 	U3TxBuf[U3TXBUFSIZE];
+volatile uint16_t 	U3TxInCnt = 0;
+volatile uint16_t 	U3TxOutCnt = 0;
+volatile uint8_t 	U3RxBuf[U3RXBUFSIZE];
+volatile uint16_t 	U3RxInCnt = 0;
+volatile uint16_t 	U3RxoutCnt = 0;
 void DrvUart3Init(uint32_t br_num)
 {
     RCC_APB1PeriphClockCmd(UART3_RCC, ENABLE); //开启UART时钟
@@ -355,15 +438,9 @@ void DrvUart3Init(uint32_t br_num)
 
 void DrvUart3SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U3TxBuf[U3TxInCnt++] = *(DataToSend + i);
-        if(U3TxInCnt >= U3TXBUFSIZE)
-            U3TxInCnt = 0;
-    }
-
-    if (!(USART3->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U3TxBuf, U3TXBUFSIZE, &U3TxInCnt, &U3TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[3]) &&
+        !(USART3->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(USART3, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -371,9 +448,8 @@ void DrvUart3SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU3GetByte(uint8_t data)
 {
-    U3RxBuf[U3RxInCnt++] = data;
-    if(U3RxInCnt >= U3RXBUFSIZE)
-        U3RxInCnt = 0;
+    drvUartRxStore(U3RxBuf, U3RXBUFSIZE, &U3RxInCnt, &U3RxoutCnt,
+                   data, &DrvUartStats[3]);
 }
 void drvU3DataCheck(void)
 {
@@ -386,41 +462,19 @@ void drvU3DataCheck(void)
 }
 void Usart3_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (USART3->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = USART3->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(USART3, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(USART3, USART_IT_RXNE); //清除中断标志
-        com_data = USART3->DR;
-        drvU3GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(USART3, USART_IT_TXE))
-    {
-        USART3->DR = U3TxBuf[U3TxOutCnt++]; //写DR清除中断标志
-		if(U3TxOutCnt >= U3TXBUFSIZE)
-            U3TxOutCnt = 0;
-        if (U3TxOutCnt == U3TxInCnt)
-        {
-            USART3->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(USART3, U3TxBuf, U3TXBUFSIZE, &U3TxInCnt, &U3TxOutCnt,
+               U3RxBuf, U3RXBUFSIZE, &U3RxInCnt, &U3RxoutCnt, &DrvUartStats[3]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart4
-#define U4RXBUFSIZE		256
+#define U4RXBUFSIZE		512
 #define U4TXBUFSIZE		256
-uint8_t 	U4TxBuf[U4TXBUFSIZE];
-uint16_t 	U4TxInCnt = 0;
-uint16_t 	U4TxOutCnt = 0;
-uint8_t 	U4RxBuf[U4RXBUFSIZE];
-uint16_t 	U4RxInCnt = 0;
-uint16_t 	U4RxoutCnt = 0;
+volatile uint8_t 	U4TxBuf[U4TXBUFSIZE];
+volatile uint16_t 	U4TxInCnt = 0;
+volatile uint16_t 	U4TxOutCnt = 0;
+volatile uint8_t 	U4RxBuf[U4RXBUFSIZE];
+volatile uint16_t 	U4RxInCnt = 0;
+volatile uint16_t 	U4RxoutCnt = 0;
 void DrvUart4Init(uint32_t br_num)
 {
     RCC_APB1PeriphClockCmd(UART4_RCC, ENABLE); //开启UART时钟
@@ -472,15 +526,9 @@ void DrvUart4Init(uint32_t br_num)
 
 void DrvUart4SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U4TxBuf[U4TxInCnt++] = *(DataToSend + i);
-        if(U4TxInCnt >= U4TXBUFSIZE)
-            U4TxInCnt = 0;
-    }
-
-    if (!(UART4->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U4TxBuf, U4TXBUFSIZE, &U4TxInCnt, &U4TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[4]) &&
+        !(UART4->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(UART4, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -488,9 +536,8 @@ void DrvUart4SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU4GetByte(uint8_t data)
 {
-    U4RxBuf[U4RxInCnt++] = data;
-    if(U4RxInCnt >= U4RXBUFSIZE)
-        U4RxInCnt = 0;
+    drvUartRxStore(U4RxBuf, U4RXBUFSIZE, &U4RxInCnt, &U4RxoutCnt,
+                   data, &DrvUartStats[4]);
 }
 void drvU4DataCheck(void)
 {
@@ -503,41 +550,19 @@ void drvU4DataCheck(void)
 }
 void Uart4_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (UART4->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = UART4->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(UART4, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(UART4, USART_IT_RXNE); //清除中断标志
-        com_data = UART4->DR;
-        drvU4GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(UART4, USART_IT_TXE))
-    {
-        UART4->DR = U4TxBuf[U4TxOutCnt++]; //写DR清除中断标志
-		if(U4TxOutCnt >= U4TXBUFSIZE)
-            U4TxOutCnt = 0;
-        if (U4TxOutCnt == U4TxInCnt)
-        {
-            UART4->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(UART4, U4TxBuf, U4TXBUFSIZE, &U4TxInCnt, &U4TxOutCnt,
+               U4RxBuf, U4RXBUFSIZE, &U4RxInCnt, &U4RxoutCnt, &DrvUartStats[4]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart5
 #define U5RXBUFSIZE		256
 #define U5TXBUFSIZE		256
-uint8_t 	U5TxBuf[U5TXBUFSIZE];
-uint16_t 	U5TxInCnt = 0;
-uint16_t 	U5TxOutCnt = 0;
-uint8_t 	U5RxBuf[U5RXBUFSIZE];
-uint16_t 	U5RxInCnt = 0;
-uint16_t 	U5RxoutCnt = 0;
+volatile uint8_t 	U5TxBuf[U5TXBUFSIZE];
+volatile uint16_t 	U5TxInCnt = 0;
+volatile uint16_t 	U5TxOutCnt = 0;
+volatile uint8_t 	U5RxBuf[U5RXBUFSIZE];
+volatile uint16_t 	U5RxInCnt = 0;
+volatile uint16_t 	U5RxoutCnt = 0;
 void DrvUart5Init(uint32_t br_num)
 {
     RCC_APB1PeriphClockCmd(UART5_RCC, ENABLE); //开启UART时钟
@@ -590,15 +615,9 @@ void DrvUart5Init(uint32_t br_num)
 
 void DrvUart5SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U5TxBuf[U5TxInCnt++] = *(DataToSend + i);
-        if(U5TxInCnt >= U5TXBUFSIZE)
-            U5TxInCnt = 0;
-    }
-
-    if (!(UART5->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U5TxBuf, U5TXBUFSIZE, &U5TxInCnt, &U5TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[5]) &&
+        !(UART5->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(UART5, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -606,56 +625,33 @@ void DrvUart5SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU5GetByte(uint8_t data)
 {
-    U5RxBuf[U5RxInCnt++] = data;
-    if(U5RxInCnt >= U5RXBUFSIZE)
-        U5RxInCnt = 0;
+    drvUartRxStore(U5RxBuf, U5RXBUFSIZE, &U5RxInCnt, &U5RxoutCnt,
+                   data, &DrvUartStats[5]);
 }
 void drvU5DataCheck(void)
 {
     while(U5RxInCnt!=U5RxoutCnt)
     {
         U5GetOneByte(LT_U5, U5RxBuf[U5RxoutCnt++]);
-        if(U5RxoutCnt >= U4RXBUFSIZE)
+        if(U5RxoutCnt >= U5RXBUFSIZE)
             U5RxoutCnt = 0;
     }
 }
 void Uart5_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (UART5->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = UART5->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(UART5, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(UART5, USART_IT_RXNE); //清除中断标志
-        com_data = UART5->DR;
-        drvU5GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(UART5, USART_IT_TXE))
-    {
-        UART5->DR = U5TxBuf[U5TxOutCnt++]; //写DR清除中断标志
-		if(U5TxOutCnt >= U5TXBUFSIZE)
-            U5TxOutCnt = 0;
-        if (U5TxOutCnt == U5TxInCnt)
-        {
-            UART5->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(UART5, U5TxBuf, U5TXBUFSIZE, &U5TxInCnt, &U5TxOutCnt,
+               U5RxBuf, U5RXBUFSIZE, &U5RxInCnt, &U5RxoutCnt, &DrvUartStats[5]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart7
 #define U7RXBUFSIZE		256
 #define U7TXBUFSIZE		256
-uint8_t 	U7TxBuf[U7TXBUFSIZE];
-uint16_t 	U7TxInCnt = 0;
-uint16_t 	U7TxOutCnt = 0;
-uint8_t 	U7RxBuf[U7RXBUFSIZE];
-uint16_t 	U7RxInCnt = 0;
-uint16_t 	U7RxoutCnt = 0;
+volatile uint8_t 	U7TxBuf[U7TXBUFSIZE];
+volatile uint16_t 	U7TxInCnt = 0;
+volatile uint16_t 	U7TxOutCnt = 0;
+volatile uint8_t 	U7RxBuf[U7RXBUFSIZE];
+volatile uint16_t 	U7RxInCnt = 0;
+volatile uint16_t 	U7RxoutCnt = 0;
 void DrvUart7Init(uint32_t br_num)
 {
     RCC_APB1PeriphClockCmd(UART7_RCC, ENABLE); //开启UART时钟
@@ -707,15 +703,9 @@ void DrvUart7Init(uint32_t br_num)
 
 void DrvUart7SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U7TxBuf[U7TxInCnt++] = *(DataToSend + i);
-        if(U7TxInCnt >= U7TXBUFSIZE)
-            U7TxInCnt = 0;
-    }
-
-    if (!(UART7->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U7TxBuf, U7TXBUFSIZE, &U7TxInCnt, &U7TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[7]) &&
+        !(UART7->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(UART7, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -723,9 +713,8 @@ void DrvUart7SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU7GetByte(uint8_t data)
 {
-    U7RxBuf[U7RxInCnt++] = data;
-    if(U7RxInCnt >= U7RXBUFSIZE)
-        U7RxInCnt = 0;
+    drvUartRxStore(U7RxBuf, U7RXBUFSIZE, &U7RxInCnt, &U7RxoutCnt,
+                   data, &DrvUartStats[7]);
 }
 void drvU7DataCheck(void)
 {
@@ -738,41 +727,19 @@ void drvU7DataCheck(void)
 }
 void Uart7_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (UART7->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = UART7->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(UART7, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(UART7, USART_IT_RXNE); //清除中断标志
-        com_data = UART7->DR;
-        drvU7GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(UART7, USART_IT_TXE))
-    {
-        UART7->DR = U7TxBuf[U7TxOutCnt++]; //写DR清除中断标志
-		if(U7TxOutCnt >= U7TXBUFSIZE)
-            U7TxOutCnt = 0;
-        if (U7TxOutCnt == U7TxInCnt)
-        {
-            UART7->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(UART7, U7TxBuf, U7TXBUFSIZE, &U7TxInCnt, &U7TxOutCnt,
+               U7RxBuf, U7RXBUFSIZE, &U7RxInCnt, &U7RxoutCnt, &DrvUartStats[7]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //====uart8
 #define U8RXBUFSIZE		256
-#define U8TXBUFSIZE		256
-uint8_t 	U8TxBuf[U8TXBUFSIZE];
-uint16_t 	U8TxInCnt = 0;
-uint16_t 	U8TxOutCnt = 0;
-uint8_t 	U8RxBuf[U8RXBUFSIZE];
-uint16_t 	U8RxInCnt = 0;
-uint16_t 	U8RxoutCnt = 0;
+#define U8TXBUFSIZE		2048
+volatile uint8_t 	U8TxBuf[U8TXBUFSIZE];
+volatile uint16_t 	U8TxInCnt = 0;
+volatile uint16_t 	U8TxOutCnt = 0;
+volatile uint8_t 	U8RxBuf[U8RXBUFSIZE];
+volatile uint16_t 	U8RxInCnt = 0;
+volatile uint16_t 	U8RxoutCnt = 0;
 void DrvUart8Init(uint32_t br_num)
 {
     RCC_APB1PeriphClockCmd(UART8_RCC, ENABLE); //开启UART时钟
@@ -824,15 +791,9 @@ void DrvUart8Init(uint32_t br_num)
 
 void DrvUart8SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 {
-    uint8_t i;
-    for (i = 0; i < data_num; i++)
-    {
-        U8TxBuf[U8TxInCnt++] = *(DataToSend + i);
-        if(U8TxInCnt >= U8TXBUFSIZE)
-            U8TxInCnt = 0;
-    }
-
-    if (!(UART8->CR1 & USART_CR1_TXEIE))
+    if (drvUartTxQueue(U8TxBuf, U8TXBUFSIZE, &U8TxInCnt, &U8TxOutCnt,
+                       DataToSend, data_num, &DrvUartStats[8]) &&
+        !(UART8->CR1 & USART_CR1_TXEIE))
     {
         USART_ITConfig(UART8, USART_IT_TXE, ENABLE); //打开发送中断
     }
@@ -840,9 +801,8 @@ void DrvUart8SendBuf(const uint8_t *DataToSend, const uint8_t data_num)
 
 void drvU8GetByte(uint8_t data)
 {
-    U8RxBuf[U8RxInCnt++] = data;
-    if(U8RxInCnt >= U8RXBUFSIZE)
-        U8RxInCnt = 0;
+    drvUartRxStore(U8RxBuf, U8RXBUFSIZE, &U8RxInCnt, &U8RxoutCnt,
+                   data, &DrvUartStats[8]);
 }
 void drvU8DataCheck(void)
 {
@@ -855,30 +815,8 @@ void drvU8DataCheck(void)
 }
 void Uart8_IRQ(void)
 {
-    uint8_t com_data;
-
-    if (UART8->SR & USART_SR_ORE) //ORE中断
-    {
-        com_data = UART8->DR;
-    }
-    //接收中断
-    if (USART_GetITStatus(UART8, USART_IT_RXNE))
-    {
-        USART_ClearITPendingBit(UART8, USART_IT_RXNE); //清除中断标志
-        com_data = UART8->DR;
-        drvU8GetByte(com_data);
-    }
-    //发送（进入移位）中断
-    if (USART_GetITStatus(UART8, USART_IT_TXE))
-    {
-        UART8->DR = U8TxBuf[U8TxOutCnt++]; //写DR清除中断标志
-		if(U8TxOutCnt >= U8TXBUFSIZE)
-            U8TxOutCnt = 0;
-        if (U8TxOutCnt == U8TxInCnt)
-        {
-            UART8->CR1 &= ~USART_CR1_TXEIE; //关闭TXE（发送中断）中断
-        }
-    }
+    drvUartIRQ(UART8, U8TxBuf, U8TXBUFSIZE, &U8TxInCnt, &U8TxOutCnt,
+               U8RxBuf, U8RXBUFSIZE, &U8RxInCnt, &U8RxoutCnt, &DrvUartStats[8]);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void DrvUartDataCheck(void)

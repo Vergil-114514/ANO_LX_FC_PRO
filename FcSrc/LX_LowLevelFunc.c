@@ -10,6 +10,7 @@
 #include "DrvAnoOF_ptv7.h"
 #include "Drv_led.h"
 #include "Drv_UbloxGPS.h"
+#include "Drv_UwbMini5.h"
 #include "LX_FcFunc.h"
 #include "Drv_Uart.h"
 #include "drv_usb.h"
@@ -41,6 +42,9 @@ _fc_vel_un fc_vel;
 _fc_alt_un fc_alt;
 static int16_t motor_test_pwm[8];
 static uint16_t motor_test_time_ms;
+static uint16_t lx_pwm_frame_timeout_ms;
+
+#define LX_PWM_FRAME_TIMEOUT_MS 100U
 
 //遥控CH5(AUX1)通道值(1000-1500-2000)设置模式1-2-3，模式0需要通过单独发送指令设置
 //模式0：姿态自稳    ->遥控CH1-CH4直接控制姿态和油门。
@@ -242,9 +246,17 @@ void LX_MotorTestStop(void)
     }
 }
 
+void LX_EscPwmFrameReceived(void)
+{
+    lx_pwm_frame_timeout_ms = LX_PWM_FRAME_TIMEOUT_MS;
+}
+
 static inline void ESC_Output(uint8_t unlocked)
 {
     static int16_t pwm[8];
+    uint8_t motor_test_active;
+
+    motor_test_active = (motor_test_time_ms > 0U) ? 1U : 0U;
     // LX X4 logical motors use physical PWM outputs 2, 4, 6 and 8.
     if (ESC_TYPE == 0)
     {
@@ -269,7 +281,7 @@ static inline void ESC_Output(uint8_t unlocked)
         pwm[7] = pwm_to_esc.pwm_m8 * 0.1f;
     }
 
-    if (motor_test_time_ms > 0U)
+    if (motor_test_active != 0U)
     {
         for (uint8_t i = 0; i < 8U; i++)
         {
@@ -278,9 +290,9 @@ static inline void ESC_Output(uint8_t unlocked)
         motor_test_time_ms--;
     }
 
-    //
-    //解锁才输出，否则输出0油门
-    if (unlocked)
+    // Normal flight output requires confirmed unlock and a fresh LX PWM frame.
+    // An explicit single-motor test remains available while locked.
+    if (unlocked || (motor_test_active != 0U && rc_in.fail_safe == 0U && EmergencyStopESC == 0U))
     {
         for (uint8_t i = 0; i < 8; i++)
         {
@@ -306,6 +318,11 @@ static inline void ESC_Output(uint8_t unlocked)
 void ANO_LX_Task()
 {
     static uint16_t  tmp_cnt[2];
+
+    if (lx_pwm_frame_timeout_ms > 0U)
+    {
+        lx_pwm_frame_timeout_ms--;
+    }
     //计10ms
     tmp_cnt[0]++;
     tmp_cnt[0] %= 10;
@@ -334,16 +351,20 @@ void ANO_LX_Task()
 
     //解析串口接收到的数据
     DrvUartDataCheck();
+    //UART4 Mini5定位数据状态检查
+    DrvUwbMini5Task1ms();
     //
     DrvUsbRunTask1MS();
     //
     AnoPTv8HwTrigger1ms();
     //GPS数据处理
+#if NAV_INPUT_GPS
     GPS_Data_Prepare_Task(1);
+#endif
     //外部传感器数据处理
     LX_FC_EXT_Sensor_Task(0.001f);
     //通信交换
     AnoDTLxRunTask1Ms(0.001f);
     //电调输出
-    ESC_Output(1); //unlocked
+    ESC_Output((fc_sta.unlock_sta != 0U) && (lx_pwm_frame_timeout_ms > 0U));
 }

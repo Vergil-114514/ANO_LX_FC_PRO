@@ -369,6 +369,17 @@ typedef struct
 } OTG_FS_TypeDef;
 #define USB_BASE (0x50000000UL)
 
+typedef struct
+{
+    uint32_t tx_queued_bytes;
+    uint32_t tx_dropped_frames;
+    uint32_t tx_dropped_bytes;
+    uint32_t tx_start_errors;
+    uint32_t tx_sent_bytes;
+} _drv_usb_cdc_stats_st;
+
+extern volatile _drv_usb_cdc_stats_st DrvUsbCdcStats;
+
 void DrvUsbCdcAddTxData(const uint8_t * buf, uint16_t len);
 
 void DrvUsbRunTask1MS(void);

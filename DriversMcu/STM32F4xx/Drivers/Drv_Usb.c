@@ -80,12 +80,17 @@ static const uint8_t cdc_descriptor[] = {
     0x00
 };
 
-#define HWCDCBUFLEN		128
+#define HWCDCBUFLEN     128
+#define CDCTXBUFLEN     4096
 
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t cdcReadBuf[HWCDCBUFLEN];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t cdcSendBuf[HWCDCBUFLEN];
 
 volatile bool ep_tx_busy_flag = false;
+static uint8_t CdcTxDataBuf[CDCTXBUFLEN];
+static volatile uint16_t CdnTxDataBufInIndex = 0;
+static volatile uint16_t CdnTxDataBufOutIndex = 0;
+volatile _drv_usb_cdc_stats_st DrvUsbCdcStats;
 
 #ifdef CONFIG_USB_HS
 #define CDC_MAX_MPS 512
@@ -93,11 +98,40 @@ volatile bool ep_tx_busy_flag = false;
 #define CDC_MAX_MPS 64
 #endif
 
+static void drvUsbCdcTxReset(void)
+{
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    CdnTxDataBufInIndex = 0U;
+    CdnTxDataBufOutIndex = 0U;
+    ep_tx_busy_flag = false;
+    __set_PRIMASK(primask);
+}
+
 void usbd_configure_done_callback(void)
 {
-    ep_tx_busy_flag = false;
+    drvUsbCdcTxReset();
     /* setup first out ep read transfer */
     usbd_ep_start_read(CDC_OUT_EP, cdcReadBuf, HWCDCBUFLEN);
+}
+
+void usbd_event_handler(uint8_t event)
+{
+    switch (event)
+    {
+    case USBD_EVENT_RESET:
+    case USBD_EVENT_DISCONNECTED:
+        drvUsbCdcTxReset();
+        break;
+
+    case USBD_EVENT_CONFIGURED:
+        usbd_configure_done_callback();
+        break;
+
+    default:
+        break;
+    }
 }
 
 void usbd_cdc_acm_bulk_out(uint8_t ep, uint32_t nbytes)
@@ -115,10 +149,17 @@ void usbd_cdc_acm_bulk_in(uint8_t ep, uint32_t nbytes)
 {
     //USB_LOG_RAW("cdc%d in len:%d\r\n", ep, nbytes);
 
-    if ((nbytes % CDC_MAX_MPS) == 0 && nbytes) {
+    if ((nbytes % CDC_MAX_MPS) == 0 && nbytes)
+    {
         /* send zlp */
-        usbd_ep_start_write(ep, NULL, 0);
-    } else {
+        if (usbd_ep_start_write(ep, NULL, 0) != 0)
+        {
+            DrvUsbCdcStats.tx_start_errors++;
+            ep_tx_busy_flag = false;
+        }
+    }
+    else
+    {
         ep_tx_busy_flag = false;
     }
 }
@@ -182,56 +223,117 @@ void DrvUsbInit(void)
     usbd_initialize();
 }
 
-#define CDCTXBUFLEN		1024
-
-uint8_t CdcTxDataBuf[CDCTXBUFLEN];
-uint16_t CdnTxDataBufInIndex = 0;
-uint16_t CdnTxDataBufOutIndex = 0;
 void DrvUsbCdcAddTxData(const uint8_t * buf, uint16_t len)
 {
-    for(int i=0; i<len; i++)
+    uint32_t primask;
+    uint16_t txIn;
+    uint16_t txOut;
+    uint16_t used;
+    uint16_t freeSize;
+
+    if (len == 0U)
     {
-        CdcTxDataBuf[CdnTxDataBufInIndex++] = *(buf+i);
-        if(CdnTxDataBufInIndex >= CDCTXBUFLEN)
-            CdnTxDataBufInIndex = 0;
+        return;
     }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    txIn = CdnTxDataBufInIndex;
+    txOut = CdnTxDataBufOutIndex;
+    if (txIn >= txOut)
+    {
+        used = txIn - txOut;
+    }
+    else
+    {
+        used = CDCTXBUFLEN - txOut + txIn;
+    }
+    freeSize = CDCTXBUFLEN - used - 1U;
+
+    if (len > freeSize)
+    {
+        DrvUsbCdcStats.tx_dropped_frames++;
+        DrvUsbCdcStats.tx_dropped_bytes += len;
+        __set_PRIMASK(primask);
+        return;
+    }
+
+    for (uint16_t i = 0U; i < len; i++)
+    {
+        CdcTxDataBuf[txIn++] = buf[i];
+        if (txIn >= CDCTXBUFLEN)
+        {
+            txIn = 0U;
+        }
+    }
+    CdnTxDataBufInIndex = txIn;
+    DrvUsbCdcStats.tx_queued_bytes += len;
+    __set_PRIMASK(primask);
 }
 
 void DrvUsbRunTask1MS(void)
 {
-    static uint8_t _cdcTxBustCnt = 0;
+    uint32_t primask;
+    uint16_t txIn;
+    uint16_t txOut;
+    uint16_t nextTxOut;
+    uint16_t dlen;
 
-    if(CdnTxDataBufInIndex != CdnTxDataBufOutIndex)
+    if (!usb_device_is_configured() || ep_tx_busy_flag)
     {
-        uint16_t _dlen = 0;
+        return;
+    }
 
-        if(ep_tx_busy_flag == false)
+    primask = __get_PRIMASK();
+    __disable_irq();
+    if (ep_tx_busy_flag || (CdnTxDataBufInIndex == CdnTxDataBufOutIndex))
+    {
+        __set_PRIMASK(primask);
+        return;
+    }
+
+    txIn = CdnTxDataBufInIndex;
+    txOut = CdnTxDataBufOutIndex;
+    if (txIn > txOut)
+    {
+        dlen = txIn - txOut;
+    }
+    else
+    {
+        dlen = CDCTXBUFLEN - txOut;
+    }
+    if (dlen > HWCDCBUFLEN)
+    {
+        dlen = HWCDCBUFLEN;
+    }
+
+    nextTxOut = txOut;
+    for (uint16_t i = 0U; i < dlen; i++)
+    {
+        cdcSendBuf[i] = CdcTxDataBuf[nextTxOut++];
+        if (nextTxOut >= CDCTXBUFLEN)
         {
-            _cdcTxBustCnt = 0;
-            if(CdnTxDataBufInIndex > CdnTxDataBufOutIndex)
-                _dlen = CdnTxDataBufInIndex - CdnTxDataBufOutIndex;
-            else
-                _dlen = CDCTXBUFLEN - CdnTxDataBufOutIndex + CdnTxDataBufInIndex;
-            if(HWCDCBUFLEN < _dlen)
-                _dlen = HWCDCBUFLEN;
-            ep_tx_busy_flag = true;
-            for(int i=0; i<_dlen; i++)
-            {
-                cdcSendBuf[i] = CdcTxDataBuf[CdnTxDataBufOutIndex++];
-                if(CdnTxDataBufOutIndex >= CDCTXBUFLEN)
-                    CdnTxDataBufOutIndex = 0;
-            }
-            usbd_ep_start_write(CDC_IN_EP, cdcSendBuf, _dlen);
+            nextTxOut = 0U;
         }
-        else
-        {
-            _cdcTxBustCnt++;
-            if(_cdcTxBustCnt >= 5)
-            {
-                _cdcTxBustCnt = 0;
-                ep_tx_busy_flag = false;
-            }
-        }
+    }
+    ep_tx_busy_flag = true;
+    __set_PRIMASK(primask);
+
+    if (usbd_ep_start_write(CDC_IN_EP, cdcSendBuf, dlen) == 0)
+    {
+        primask = __get_PRIMASK();
+        __disable_irq();
+        CdnTxDataBufOutIndex = nextTxOut;
+        DrvUsbCdcStats.tx_sent_bytes += dlen;
+        __set_PRIMASK(primask);
+    }
+    else
+    {
+        primask = __get_PRIMASK();
+        __disable_irq();
+        DrvUsbCdcStats.tx_start_errors++;
+        ep_tx_busy_flag = false;
+        __set_PRIMASK(primask);
     }
 }
 

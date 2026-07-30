@@ -13,6 +13,7 @@
 #include "Drv_Timer.h"
 #include "DataTransfer.h"
 #include "Drv_UbloxGPS.h"
+#include "Drv_UwbMini5.h"
 #include "Drv_Uart.h"
 #include "Drv_Timer.h"
 #include "Drv_Usb.h"
@@ -49,7 +50,9 @@ uint8_t All_Init()
     //串口3初始化
     DrvUart3Init(500000);
     //串口4初始化
-    //DrvUart4Init(500000);
+#if NAV_INPUT_UWB_MINI5
+    DrvUart4Init(115200);
+#endif
     //串口5
     DrvUart5Init(500000);
     //串口7
@@ -60,8 +63,12 @@ uint8_t All_Init()
     //SBUS输入采集初始化
     DrvRcInputInit();
     MyDelayMs(100);
-    //GPS接口初始化
+    //UART4导航接口初始化
+#if NAV_INPUT_UWB_MINI5
+    DrvUwbMini5Init();
+#elif NAV_INPUT_GPS
     Init_GPS();
+#endif
     //初始化定时中断
     DrvTimerFcInit();
 	//

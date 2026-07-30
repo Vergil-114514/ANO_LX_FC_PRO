@@ -26,8 +26,31 @@ typedef int16_t vec2_s16[2];
 enum e_pmutype{PT_NULL, PT_ANOPMU, PT_FCS200, PT_COUNT};
 #define PMU_TYPE	(PT_FCS200)		//PMU种类
 
-//#define GPS_USE_RTK
+// UART4/UC navigation input. Exactly one source may own this port.
+#define NAV_INPUT_UWB_MINI5 1
+#define NAV_INPUT_GPS 0
+
+#if ((NAV_INPUT_UWB_MINI5 + NAV_INPUT_GPS) != 1)
+#error "Select exactly one UART4 navigation input"
+#endif
+
+#if NAV_INPUT_GPS
 #define GPS_USE_UBLOX_M8
+#endif
+
+// Mini5 anchor antenna phase-center coordinates in the car UWB frame, mm.
+#define UWB_A0_X_MM (-300)
+#define UWB_A0_Y_MM (-300)
+#define UWB_A1_X_MM (300)
+#define UWB_A1_Y_MM (-300)
+#define UWB_A2_X_MM (-300)
+#define UWB_A2_Y_MM (300)
+#define UWB_A3_X_MM (300)
+#define UWB_A3_Y_MM (300)
+#define UWB_TAG_SHORT_ID 0x07U
+#define UWB_DATA_TIMEOUT_MS 500U
+#define UWB_RANGE_MIN_MM 100U
+#define UWB_RANGE_MAX_MM 50000U
 //================RCCNANNELDEF===================
 //飞控模式切换通道
 #define RCCNANNELDEF_FLIGHTMODE		ch_6_aux2	
