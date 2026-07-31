@@ -51,6 +51,37 @@ enum e_pmutype{PT_NULL, PT_ANOPMU, PT_FCS200, PT_COUNT};
 #define UWB_DATA_TIMEOUT_MS 500U
 #define UWB_RANGE_MIN_MM 100U
 #define UWB_RANGE_MAX_MM 50000U
+
+// UWB alpha-beta filter settings. Raw positions remain available for frame 0x32.
+#define UWB_FILTER_ALPHA 0.35f
+#define UWB_FILTER_BETA 0.05f
+#define UWB_FILTER_MAX_RESIDUAL_MM 300U
+#define UWB_FILTER_MAX_SPEED_MMPS 3000U
+#define UWB_FILTER_WARMUP_SAMPLES 3U
+
+// Car heading input selection.
+#define CAR_LINK_PORT_NONE 0U
+#define CAR_LINK_PORT_UART8 8U
+#define CAR_LINK_PORT CAR_LINK_PORT_UART8
+#define CAR_LINK_UART8_BAUDRATE 115200U
+#define CAR_LINK_TIMEOUT_MS 200U
+
+// Automatic payload and dynamic-landing task settings.
+#define AUTO_CRUISE_ALT_CM             150U
+#define DROP_ALT_CM                    100U
+#define UWB_TARGET_OFFSET_X_MM         0
+#define UWB_TARGET_OFFSET_Y_MM         0
+#define PAYLOAD_RELEASE_DELAY_MS       500U
+#define AUTO_ALIGN_TOL_MM              80U
+#define AUTO_ALIGN_STABLE_MS           500U
+#define AUTO_LAND_CONTACT_ALT_CM       15U
+#define AUTO_CAR_DWELL_MS              5000U
+#define AUTO_TASK_TIMEOUT_MS           90000U
+#define AUTO_ALTITUDE_TOL_CM           10U
+#define AUTO_MAX_VERTICAL_SPEED_CMPS   20.0f
+#define AUTO_VERTICAL_SPEED_KP          0.5f
+#define AUTO_TOF_DATA_TIMEOUT_MS        500U
+#define AUTO_IMU_VEL_DATA_TIMEOUT_MS    500U
 //================RCCNANNELDEF===================
 //飞控模式切换通道
 #define RCCNANNELDEF_FLIGHTMODE		ch_6_aux2	

@@ -142,6 +142,7 @@ typedef struct
 extern _fc_att_un fc_att;
 extern _fc_att_qua_un fc_att_qua;
 extern _fc_vel_un fc_vel;
+extern volatile uint32_t fc_vel_update_count;
 extern _fc_alt_un fc_alt;
 extern _rt_tar_un rt_tar;
 extern _fc_bat_un fc_bat;
@@ -152,8 +153,6 @@ extern _pwm_st pwm_to_esc;
 
 //public
 void ANO_LX_Task(void);
-uint8_t LX_MotorTestStart(uint8_t motorMask, uint16_t pulseUs, uint16_t durationMs);
-void LX_MotorTestStop(void);
 void LX_EscPwmFrameReceived(void);
 
 #endif

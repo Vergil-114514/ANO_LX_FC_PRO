@@ -13,9 +13,17 @@
 #include "Drv_UwbMini5.h"
 #include "Drv_AnoOf.h"
 #include "DrvAnoOF_ptv7.h"
+#include "Drv_CarLink.h"
 #include "Drv_RcIn.h"
 
 void NoUse(const uint8_t type, const uint8_t data) {}
+
+static void drvU8CarLinkGetOneByte(const uint8_t linktype, const uint8_t data)
+{
+    (void)linktype;
+    DrvCarLinkRxOneByte(data);
+}
+
 //串口接收发送快速定义，直接修改此处的函数名称宏，修改成自己的串口解析和发送函数名称即可，注意函数参数格式需统一
 //Uart1：连接IMU
 //Uart2：丝印UD		连接了内部CH343芯片
@@ -35,7 +43,11 @@ void NoUse(const uint8_t type, const uint8_t data) {}
 #endif
 #define U5GetOneByte	DrvAnoOFGetOneByte_ptv7
 #define U7GetOneByte	DrvRcLoraRxOneByte
+#if CAR_LINK_PORT == CAR_LINK_PORT_UART8
+#define U8GetOneByte	drvU8CarLinkGetOneByte
+#else
 #define U8GetOneByte	AnoPTv8HwRecvByte
+#endif
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 volatile _drv_uart_stats_st DrvUartStats[9];
 

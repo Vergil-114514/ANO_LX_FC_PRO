@@ -6,12 +6,19 @@
 typedef struct
 {
     int32_t position_mm[3];
+    int32_t filtered_position_mm[3];
+    int32_t filtered_velocity_mmps[3];
     uint32_t residual_mm;
     uint32_t last_update_ms;
+    uint32_t filter_last_update_ms;
     uint32_t valid_frame_count;
     uint32_t rejected_frame_count;
+    uint32_t filter_rejected_count;
     uint16_t age_ms;
+    uint16_t filter_age_ms;
     uint8_t valid;
+    uint8_t filter_valid;
+    uint8_t filter_warmup_count;
     uint8_t anchor_mask;
     uint8_t position_update_cnt;
     uint8_t last_rseq;

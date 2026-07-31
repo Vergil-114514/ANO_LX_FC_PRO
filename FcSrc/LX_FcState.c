@@ -19,6 +19,7 @@
 #include "Drv_RcIn.h"
 #include "DataTransfer.h"
 #include "LX_FcFunc.h"
+#include "User_Task.h"
 
 _fc_state_st fc_sta;
 _sticks_fun_st sti_fun;
@@ -171,6 +172,14 @@ void LX_Cali_Trig_Check()
 
 void LX_FC_State_Task(float dT_s)
 {
+	if (UserTask_IsAutoControlActive() != 0U)
+	{
+		time_dly_cnt_ms = 0U;
+		unlock_lock_flag = 0U;
+		sti_fun.pre_locking = 0U;
+		return;
+	}
+
     //有遥控信号才执行
     if (rc_in.fail_safe == 0)
     {

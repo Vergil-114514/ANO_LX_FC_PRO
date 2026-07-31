@@ -45,6 +45,7 @@ void EXTI9_5_IRQHandler(void)
 }
 
 #include "Drv_RcIn.h"
+#include "Drv_PayloadServo.h"
 void TIM3_IRQHandler(void)
 {
     //_TIM3_IRQHandler();
@@ -54,6 +55,11 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
     //_TIM4_IRQHandler();
+}
+
+void TIM2_IRQHandler(void)
+{
+    DrvPayloadServoIrqHandler();
 }
 
 #include "LX_LowLevelFunc.h"

@@ -91,7 +91,8 @@ typedef union
 #define LT_D_PMU	LT_U2
 // UB is PTV7 input only; there is no direct PTv8 link.
 #define LT_D_OF		LT_NONE
-#define LT_D_SWJ	(LT_U2 | LT_U3 | LT_U8 | LT_USBCDC)
+// UG/UART8 is reserved for the car heading receiver.
+#define LT_D_SWJ	(LT_U2 | LT_U3 | LT_USBCDC)
 
 #include "AnoPTv8Run.h"
 #include "AnoPTv8Par.h"

@@ -576,6 +576,26 @@
               <FilePath>..\DriversBsp\Drv_UwbMini5.h</FilePath>
             </File>
             <File>
+              <FileName>Drv_CarLink.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\DriversBsp\Drv_CarLink.c</FilePath>
+            </File>
+            <File>
+              <FileName>Drv_CarLink.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\DriversBsp\Drv_CarLink.h</FilePath>
+            </File>
+            <File>
+              <FileName>Drv_PayloadServo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\DriversBsp\Drv_PayloadServo.c</FilePath>
+            </File>
+            <File>
+              <FileName>Drv_PayloadServo.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\DriversBsp\Drv_PayloadServo.h</FilePath>
+            </File>
+            <File>
               <FileName>DrvAnoOF_ptv7.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\DriversBsp\DrvAnoOF_ptv7.c</FilePath>

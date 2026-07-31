@@ -8,7 +8,7 @@
 
 /* Change only these signs after an unpropellered bench direction check. */
 #ifndef LORA3A22_ROLL_SIGN
-#define LORA3A22_ROLL_SIGN         1
+#define LORA3A22_ROLL_SIGN         -1
 #endif
 #ifndef LORA3A22_PITCH_SIGN
 #define LORA3A22_PITCH_SIGN        1

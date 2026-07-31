@@ -14,6 +14,8 @@
 #include "DataTransfer.h"
 #include "Drv_UbloxGPS.h"
 #include "Drv_UwbMini5.h"
+#include "Drv_CarLink.h"
+#include "Drv_PayloadServo.h"
 #include "Drv_Uart.h"
 #include "Drv_Timer.h"
 #include "Drv_Usb.h"
@@ -39,6 +41,9 @@ uint8_t All_Init()
 		DrvDshot600Init();
 	else 
 		DrvPwmOutInit();
+#if (ESC_TYPE == 0)
+    DrvPayloadServoInit();
+#endif
     MyDelayMs(100);
     //
     AnoPTv8ParInit();
@@ -58,7 +63,11 @@ uint8_t All_Init()
     //串口7
     DrvUart7Init(115200);
     //串口8
+#if CAR_LINK_PORT == CAR_LINK_PORT_UART8
+    DrvUart8Init(CAR_LINK_UART8_BAUDRATE);
+#else
     DrvUart8Init(500000);
+#endif
     MyDelayMs(100);
     //SBUS输入采集初始化
     DrvRcInputInit();
@@ -69,6 +78,7 @@ uint8_t All_Init()
 #elif NAV_INPUT_GPS
     Init_GPS();
 #endif
+    DrvCarLinkInit();
     //初始化定时中断
     DrvTimerFcInit();
 	//

@@ -101,13 +101,12 @@ void DrvPwmOutInit(void)
     TIM_ARRPreloadConfig(TIM5, ENABLE);
     TIM_Cmd(TIM5, ENABLE);
     /////////////////////////////////////////////////////////////////////////////
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_11 | GPIO_Pin_13 | GPIO_Pin_14;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11 | GPIO_Pin_13 | GPIO_Pin_14;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
     GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
     GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
     GPIO_Init(GPIOE, &GPIO_InitStructure);
-    GPIO_PinAFConfig(GPIOE, GPIO_PinSource9, GPIO_AF_TIM1);
     GPIO_PinAFConfig(GPIOE, GPIO_PinSource11, GPIO_AF_TIM1);
     GPIO_PinAFConfig(GPIOE, GPIO_PinSource13, GPIO_AF_TIM1);
     GPIO_PinAFConfig(GPIOE, GPIO_PinSource14, GPIO_AF_TIM1);
@@ -126,11 +125,6 @@ void DrvPwmOutInit(void)
     TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_Low;
     TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
     TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Reset;
-    /* PWM1 Mode configuration: Channel1 */
-    TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-    TIM_OCInitStructure.TIM_Pulse = INIT_DUTY;
-    TIM_OC1Init(TIM1, &TIM_OCInitStructure);
-    TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);
     /* PWM1 Mode configuration: Channel2 */
     //TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
     TIM_OCInitStructure.TIM_Pulse = INIT_DUTY;
@@ -191,7 +185,6 @@ void DrvPwmOutInit(void)
     TIM1->CCR4 = 2 * INIT_DUTY; //1
     TIM1->CCR3 = 2 * INIT_DUTY; //2
     TIM1->CCR2 = 2 * INIT_DUTY; //3
-    TIM1->CCR1 = 2 * INIT_DUTY; //4
     TIM5->CCR4 = 2 * INIT_DUTY; //5
     TIM5->CCR3 = 2 * INIT_DUTY; //6
     TIM8->CCR4 = 2 * INIT_DUTY; //7
@@ -206,7 +199,6 @@ void DrvMotorPWMSet(int16_t pwm[8])
     TIM1->CCR4 = 2 * INIT_DUTY; //1
     TIM1->CCR3 = 2 * INIT_DUTY; //2
     TIM1->CCR2 = 2 * INIT_DUTY; //3
-    TIM1->CCR1 = 2 * INIT_DUTY; //4
     TIM5->CCR4 = 2 * INIT_DUTY; //5
     TIM5->CCR3 = 2 * INIT_DUTY; //6
     TIM8->CCR4 = 2 * INIT_DUTY; //7
@@ -215,7 +207,6 @@ void DrvMotorPWMSet(int16_t pwm[8])
 #endif
     if (EmergencyStopESC)
     {
-        TIM1->CCR1 = PWM_RADIO *(0) + INIT_DUTY;  //1
         TIM1->CCR2 = PWM_RADIO *(0) + INIT_DUTY;  //2
         TIM1->CCR3 = PWM_RADIO *(0) + INIT_DUTY;  //3
         TIM1->CCR4 = PWM_RADIO *(0) + INIT_DUTY;  //4
@@ -231,7 +222,6 @@ void DrvMotorPWMSet(int16_t pwm[8])
 //		pwm[2] = _val;
 //		pwm[3] = _val;
         //·¶Î§0-1000£¬×ª»»µ½4000-8000£¬ÕÛºÏ1000-2000us
-        TIM1->CCR1 = PWM_RADIO *(pwm[0]) + INIT_DUTY;  //1
         TIM1->CCR2 = PWM_RADIO *(pwm[1]) + INIT_DUTY;  //2
         TIM1->CCR3 = PWM_RADIO *(pwm[2]) + INIT_DUTY;  //3
         TIM1->CCR4 = PWM_RADIO *(pwm[3]) + INIT_DUTY;  //4

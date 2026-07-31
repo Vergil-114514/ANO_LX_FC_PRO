@@ -1,6 +1,9 @@
 #include "LX_FcFunc.h"
 #include "LX_FcState.h"
 #include "DataTransfer.h"
+#include "Drv_Sys.h"
+
+#define LX_MODE_RETRY_INTERVAL_MS 1000U
 
 /*==========================================================================
  * 描述    ：凌霄飞控基本功能主程序
@@ -59,26 +62,39 @@ uint8_t FC_Lock()
 //改变飞控模式(模式0-3)
 uint8_t LX_Change_Mode(uint8_t new_mode)
 {
-    static uint8_t old_mode;
-    if (old_mode != new_mode)
+    static uint8_t requested_mode = 0xFFU;
+    static uint32_t last_mode_attempt_ms;
+    const uint32_t now_ms = GetSysRunTimeMs();
+
+    if (fc_sta.fc_mode_sta == new_mode)
     {
-        //
-        if (AnoPTv8CmdSendIsInIdle()) //没有其他等待校验的CMD时才发送本CMD
-        {
-            old_mode = fc_sta.fc_mode_cmd = new_mode;
-            //按协议发送指令
-            uint8_t _sbuf[4] = {0x01, 0x01, 0x01, fc_sta.fc_mode_cmd};
-            return AnoPTv8CmdSend(LT_D_IMU, ANOPTV8DEVID_LXIMU, _sbuf, sizeof(_sbuf));
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else //已经在当前模式
-    {
+        requested_mode = new_mode;
+        last_mode_attempt_ms = now_ms;
         return 1;
     }
+
+    if (requested_mode != new_mode)
+    {
+        requested_mode = new_mode;
+        last_mode_attempt_ms = now_ms - LX_MODE_RETRY_INTERVAL_MS;
+    }
+
+    if ((now_ms - last_mode_attempt_ms) < LX_MODE_RETRY_INTERVAL_MS)
+    {
+        return 0;
+    }
+
+    if (AnoPTv8CmdSendIsInIdle()) //没有其他等待校验的CMD时才发送本CMD
+    {
+        uint8_t _sbuf[4] = {0x01, 0x01, 0x01, new_mode};
+        if (AnoPTv8CmdSend(LT_D_IMU, ANOPTV8DEVID_LXIMU, _sbuf, sizeof(_sbuf)) != 0U)
+        {
+            fc_sta.fc_mode_cmd = new_mode;
+            last_mode_attempt_ms = now_ms;
+        }
+    }
+
+    return 0;
 }
 
 //一键返航

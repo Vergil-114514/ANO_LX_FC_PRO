@@ -40,9 +40,11 @@ void AnoPTv8HwSendBytes(const uint16_t linktype, const uint8_t *buf, const uint1
         DrvUart7SendBuf(buf, len);
     }
 
+    #if CAR_LINK_PORT != CAR_LINK_PORT_UART8
     if (LT_U8 &linktype) {
         DrvUart8SendBuf(buf, len);
     }
+    #endif
 
     if (LT_USBCDC &linktype) {
         DrvUsbCdcAddTxData(buf, len);
@@ -211,8 +213,6 @@ void AnoPTv8FrameAnl(const uint8_t linktype, const _un_frame_v8 *p)
              p->frame.ddevid == ANOPTV8DEVID_ALL)) {
             AnoPTv8MirrorLxFrame(p);
         }
-    } else if (ANOPTV8DEVID_SWJ == p->frame.sdevid) {
-        AnoDTMotorTestFrameAnl(linktype, p);
     } else if (ANOPTV8DEVID_OF  == p->frame.sdevid) {
         AnoOFFrameAnl(linktype, p);
     } else if(ANOPTV8DEVID_PMU  == p->frame.sdevid) {
@@ -277,7 +277,9 @@ void AnoPTv8FrameExchange(const uint8_t linktype, const _un_frame_v8 *p)
 
 
         case ANOPTV8DEVID_UART8:
+        #if CAR_LINK_PORT != CAR_LINK_PORT_UART8
             AnoPTv8HwSendBytes(LT_U8, p->rawBytes, frameLen);
+        #endif
             break;
         }
     }

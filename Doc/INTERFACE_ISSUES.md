@@ -1,6 +1,6 @@
 # Interface Investigation Log
 
-Updated: 2026-07-29
+Updated: 2026-07-31
 
 This document records interface constraints and routing changes for the current
 hardware configuration.
@@ -91,6 +91,61 @@ The configured anchor phase centers are A0 `(-300,-300)`, A1 `(300,-300)`,
 A2 `(-300,300)`, and A3 `(300,300)` mm. A valid solution is emitted as the
 LX IMU's host-only `0x32` frame with raw UWB X/Y in mm and Z=0. It is not sent
 to UART1 and cannot affect the IMU position estimator or flight control.
+
+Raw UWB coordinates remain unfiltered for host display. A separate alpha-beta
+filter rejects solutions with residuals above 300 mm or implausible horizontal
+steps and is used by the current automatic chase controller.
+
+## Mode 3 car-link
+
+The project includes the fixed car-heading frame parser
+`AA 55 01 SEQ FLAGS YAW_X100_LE CRC16_LE`, with CRC16-CCITT-FALSE over bytes
+0 through 8. `FLAGS.bit0` is start, `bit1` is abort, `bit2` selects the
+dynamic-landing task, and `bit3` latches the car-at-A event. The frame parser
+is received on UART8/UG from a SeekFree wireless UART module. UG is fixed at
+115200 8N1 and is no longer a PTv8 host-data link; PTv8 telemetry remains on
+UART2/UD, UART3/UA, and native USB CDC. The module is used as a receive-only
+transparent link, so its TX connects to UG RX, with shared ground and power;
+its RX, RTS, and CMD pins are not required by the flight controller.
+The car should send a new frame at 20 Hz or faster to satisfy the 200 ms
+heading timeout.
+
+Mode 3 is requested automatically at power-on and remains owned by the
+automatic task. START is accepted only while the filtered UWB position is
+fresh; that same sample is frozen as H relative to A before the car moves.
+After Mode 3 is confirmed, the vehicle is locked, filtered UWB, car heading,
+PTV7 type-1 optical flow, ToF altitude, and LX IMU 0x07 velocity data are
+valid, and emergency-stop is clear, the sequence is unlock -> takeoff to
+150 cm -> hover for 3 s -> IMU Mode 2 velocity tracking.
+
+The payload branch descends to 100 cm, holds a valid centered solution for
+500 ms, rechecks that solution immediately before releasing the payload servo
+once, then returns to cruise height. The dynamic branch descends to the
+configurable 15 cm contact threshold, requires current alignment and a
+vertical speed within 20 cm/s before every lock attempt, waits 5 seconds, and
+repeats the Mode 3 unlock/takeoff sequence.
+Both branches return to cruise height and hold their current position in Mode 2
+while the car independently returns to A. After `CAR_AT_A`, they use the saved
+UWB target to return to H and land. `COMPLETE` remains locked until power is
+cycled so the payload servo reinitializes to its clamped state.
+
+LORA mode switching, stick lock/unlock, calibration gestures, and receiver
+failsafe return-home, and the CH7 manual payload-servo test are ignored from
+power-on. During chase, UWB, heading, optical-flow, or ToF loss retains the
+last target; the next valid data updates the target immediately. A low-altitude
+payload release, car lock, or H-point landing only advances after current
+sensor data is valid; the PTV7 type-1 flow and ToF height frames must each be
+newer than 500 ms, and the LX IMU 0x07 velocity frame must also be newer than
+500 ms. A car ABORT frame or emergency-stop enters the land failsafe.
+
+If takeoff does not reach the target within 15 seconds, the task enters a land
+failsafe. A 90-second task timeout enters the same state. It retries the land
+command every 500 ms; once fresh ToF altitude is 30 cm or lower, it retries
+locking until the IMU reports locked. Unknown ToF continues landing rather
+than resetting the task.
+
+The former UD PTv8 single-motor test frame is disabled and cannot override the
+normal physical PWM outputs 2, 4, 6, and 8.
 
 ## Evidence limitation
 

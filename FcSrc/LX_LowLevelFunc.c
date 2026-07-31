@@ -15,6 +15,8 @@
 #include "Drv_Uart.h"
 #include "drv_usb.h"
 #include "AnoPTv8ExAPI.h"
+#include "User_Task.h"
+#include "Drv_CarLink.h"
 /*==========================================================================
  * 描述    ：凌霄飞控输入、输出主程序
  * 更新时间：2020-01-22
@@ -39,9 +41,8 @@ _fc_bat_un fc_bat;
 _fc_att_un fc_att;
 _fc_att_qua_un fc_att_qua;
 _fc_vel_un fc_vel;
+volatile uint32_t fc_vel_update_count;
 _fc_alt_un fc_alt;
-static int16_t motor_test_pwm[8];
-static uint16_t motor_test_time_ms;
 static uint16_t lx_pwm_frame_timeout_ms;
 
 #define LX_PWM_FRAME_TIMEOUT_MS 100U
@@ -79,6 +80,14 @@ static inline void RC_Data_Task(float dT_s)
     else
     {
         EmergencyStopESC = 0;
+    }
+
+    if (UserTask_IsAutoControlActive() != 0U)
+    {
+        AnoDTLxFrameSendTrigger(0x41);
+        fail_safe_change_mod = 0;
+        fail_safe_return_home = 0;
+        return;
     }
 
     //遥控没有失控标记才执行
@@ -168,10 +177,13 @@ static inline void RC_Data_Task(float dT_s)
         //注意正负号需要满足ANO坐标系定义，一般情况姿态角表示方向（包括上位机）和遥控摇杆反向都与飞控使用的ANO坐标系不同。
         //		if(mod_f[0]<2)
         //		{
-        rt_tar.st_data.rol = tmp_ch_dz[ch_1_rol] * 0.00217f * MAX_ANGLE;
-        rt_tar.st_data.pit = -tmp_ch_dz[ch_2_pit] * 0.00217f * MAX_ANGLE;		//因为摇杆俯仰方向和定义的俯仰方向相反，所以取负
-        rt_tar.st_data.thr = (rc_in.rc_ch.st_data.ch_[ch_3_thr] - 1000);		//0.1%
-        rt_tar.st_data.yaw_dps = -tmp_ch_dz[ch_4_yaw] * 0.00238f * MAX_YAW_DPS; //因为摇杆航向方向和定义的航向方向相反，所以取负
+        if (mod_f[0] != 3U)
+        {
+            rt_tar.st_data.rol = tmp_ch_dz[ch_1_rol] * 0.00217f * MAX_ANGLE;
+            rt_tar.st_data.pit = -tmp_ch_dz[ch_2_pit] * 0.00217f * MAX_ANGLE;		//因为摇杆俯仰方向和定义的俯仰方向相反，所以取负
+            rt_tar.st_data.thr = (rc_in.rc_ch.st_data.ch_[ch_3_thr] - 1000);		//0.1%
+            rt_tar.st_data.yaw_dps = -tmp_ch_dz[ch_4_yaw] * 0.00238f * MAX_YAW_DPS; //因为摇杆航向方向和定义的航向方向相反，所以取负
+        }
         //		}
         //############(实时控制帧，自主开发闭环控制，在这里赋值即可)##############
         //实时XYZ-YAW期望速度(实时控制帧)
@@ -216,36 +228,6 @@ static inline void RC_Data_Task(float dT_s)
     }
 }
 
-//输出给电调
-uint8_t LX_MotorTestStart(uint8_t motorMask, uint16_t pulseUs, uint16_t durationMs)
-{
-    uint8_t i;
-
-    if (motorMask == 0U || (motorMask & (motorMask - 1U)) != 0U || pulseUs < 1000U || pulseUs > 1200U || durationMs == 0U || durationMs > 1000U)
-    {
-        return 0;
-    }
-
-    for (i = 0; i < 8U; i++)
-    {
-        motor_test_pwm[i] = (motorMask & ((uint8_t)1U << i)) ? (int16_t)(pulseUs - 1000U) : 0;
-    }
-
-    motor_test_time_ms = durationMs;
-    return 1;
-}
-
-void LX_MotorTestStop(void)
-{
-    uint8_t i;
-
-    motor_test_time_ms = 0;
-    for (i = 0; i < 8U; i++)
-    {
-        motor_test_pwm[i] = 0;
-    }
-}
-
 void LX_EscPwmFrameReceived(void)
 {
     lx_pwm_frame_timeout_ms = LX_PWM_FRAME_TIMEOUT_MS;
@@ -254,9 +236,6 @@ void LX_EscPwmFrameReceived(void)
 static inline void ESC_Output(uint8_t unlocked)
 {
     static int16_t pwm[8];
-    uint8_t motor_test_active;
-
-    motor_test_active = (motor_test_time_ms > 0U) ? 1U : 0U;
     // LX X4 logical motors use physical PWM outputs 2, 4, 6 and 8.
     if (ESC_TYPE == 0)
     {
@@ -281,18 +260,8 @@ static inline void ESC_Output(uint8_t unlocked)
         pwm[7] = pwm_to_esc.pwm_m8 * 0.1f;
     }
 
-    if (motor_test_active != 0U)
-    {
-        for (uint8_t i = 0; i < 8U; i++)
-        {
-            pwm[i] = motor_test_pwm[i];
-        }
-        motor_test_time_ms--;
-    }
-
     // Normal flight output requires confirmed unlock and a fresh LX PWM frame.
-    // An explicit single-motor test remains available while locked.
-    if (unlocked || (motor_test_active != 0U && rc_in.fail_safe == 0U && EmergencyStopESC == 0U))
+    if (unlocked)
     {
         for (uint8_t i = 0; i < 8; i++)
         {
@@ -353,6 +322,7 @@ void ANO_LX_Task()
     DrvUartDataCheck();
     //UART4 Mini5定位数据状态检查
     DrvUwbMini5Task1ms();
+    DrvCarLinkTask1ms();
     //
     DrvUsbRunTask1MS();
     //

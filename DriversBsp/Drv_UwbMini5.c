@@ -23,6 +23,90 @@ static const int32_t uwbAnchorY[UWB_ANCHOR_COUNT] =
     UWB_A0_Y_MM, UWB_A1_Y_MM, UWB_A2_Y_MM, UWB_A3_Y_MM
 };
 
+static float uwbAbs(const float value)
+{
+    return (value >= 0.0f) ? value : -value;
+}
+
+static void uwbFilterReset(const int32_t positionX, const int32_t positionY, const uint32_t nowMs)
+{
+    UwbMini5.filtered_position_mm[0] = positionX;
+    UwbMini5.filtered_position_mm[1] = positionY;
+    UwbMini5.filtered_position_mm[2] = 0;
+    UwbMini5.filtered_velocity_mmps[0] = 0;
+    UwbMini5.filtered_velocity_mmps[1] = 0;
+    UwbMini5.filtered_velocity_mmps[2] = 0;
+    UwbMini5.filter_last_update_ms = nowMs;
+    UwbMini5.filter_age_ms = 0U;
+    UwbMini5.filter_valid = 0U;
+    UwbMini5.filter_warmup_count = 1U;
+}
+
+static void uwbFilterUpdate(const int32_t positionX, const int32_t positionY, const uint32_t residualMm, const uint32_t nowMs)
+{
+    uint32_t dtMs;
+    float dtSeconds;
+    float predictedX;
+    float predictedY;
+    float innovationX;
+    float innovationY;
+    float maxInnovation;
+
+    if ((residualMm > UWB_FILTER_MAX_RESIDUAL_MM) ||
+        (UwbMini5.filter_last_update_ms == 0U))
+    {
+        if (residualMm > UWB_FILTER_MAX_RESIDUAL_MM)
+        {
+            UwbMini5.filter_rejected_count++;
+            return;
+        }
+
+        uwbFilterReset(positionX, positionY, nowMs);
+        return;
+    }
+
+    dtMs = nowMs - UwbMini5.filter_last_update_ms;
+    if ((dtMs == 0U) || (dtMs > UWB_DATA_TIMEOUT_MS))
+    {
+        uwbFilterReset(positionX, positionY, nowMs);
+        return;
+    }
+
+    dtSeconds = (float)dtMs * 0.001f;
+    predictedX = (float)UwbMini5.filtered_position_mm[0] + (float)UwbMini5.filtered_velocity_mmps[0] * dtSeconds;
+    predictedY = (float)UwbMini5.filtered_position_mm[1] + (float)UwbMini5.filtered_velocity_mmps[1] * dtSeconds;
+    innovationX = (float)positionX - predictedX;
+    innovationY = (float)positionY - predictedY;
+    maxInnovation = 300.0f + (float)UWB_FILTER_MAX_SPEED_MMPS * dtSeconds;
+
+    if ((residualMm > UWB_FILTER_MAX_RESIDUAL_MM) ||
+        (uwbAbs(innovationX) > maxInnovation) ||
+        (uwbAbs(innovationY) > maxInnovation))
+    {
+        UwbMini5.filter_rejected_count++;
+        return;
+    }
+
+    predictedX += UWB_FILTER_ALPHA * innovationX;
+    predictedY += UWB_FILTER_ALPHA * innovationY;
+    UwbMini5.filtered_velocity_mmps[0] = (int32_t)((float)UwbMini5.filtered_velocity_mmps[0] + UWB_FILTER_BETA * innovationX / dtSeconds);
+    UwbMini5.filtered_velocity_mmps[1] = (int32_t)((float)UwbMini5.filtered_velocity_mmps[1] + UWB_FILTER_BETA * innovationY / dtSeconds);
+    UwbMini5.filtered_position_mm[0] = (int32_t)(predictedX + ((predictedX >= 0.0f) ? 0.5f : -0.5f));
+    UwbMini5.filtered_position_mm[1] = (int32_t)(predictedY + ((predictedY >= 0.0f) ? 0.5f : -0.5f));
+    UwbMini5.filtered_position_mm[2] = 0;
+    UwbMini5.filter_last_update_ms = nowMs;
+    UwbMini5.filter_age_ms = 0U;
+
+    if (UwbMini5.filter_warmup_count < UWB_FILTER_WARMUP_SAMPLES)
+    {
+        UwbMini5.filter_warmup_count++;
+    }
+    if (UwbMini5.filter_warmup_count >= UWB_FILTER_WARMUP_SAMPLES)
+    {
+        UwbMini5.filter_valid = 1U;
+    }
+}
+
 static uint8_t uwbIsSeparator(const char data)
 {
     return (data == ' ') || (data == '\t') || (data == ',');
@@ -288,17 +372,20 @@ static void uwbParseLine(const char *line)
         return;
     }
 
+    const uint32_t nowMs = GetSysRunTimeMs();
+
     UwbMini5.position_mm[0] = positionX;
     UwbMini5.position_mm[1] = positionY;
     UwbMini5.position_mm[2] = 0;
     UwbMini5.residual_mm = residualMm;
-    UwbMini5.last_update_ms = GetSysRunTimeMs();
+    UwbMini5.last_update_ms = nowMs;
     UwbMini5.age_ms = 0U;
     UwbMini5.valid = 1U;
     UwbMini5.last_rseq = (uint8_t)rseq;
     UwbMini5.rseq_valid = 1U;
     UwbMini5.position_update_cnt++;
     UwbMini5.valid_frame_count++;
+    uwbFilterUpdate(positionX, positionY, residualMm, nowMs);
 }
 
 void DrvUwbMini5Init(void)
@@ -350,19 +437,32 @@ void DrvUwbMini5RxOneByte(const uint8_t linktype, const uint8_t data)
 
 void DrvUwbMini5Task1ms(void)
 {
-    if (UwbMini5.valid == 0U)
+    if (UwbMini5.valid != 0U)
     {
-        return;
+        if (UwbMini5.age_ms < 0xFFFFU)
+        {
+            UwbMini5.age_ms++;
+        }
+
+        if (UwbMini5.age_ms > UWB_DATA_TIMEOUT_MS)
+        {
+            UwbMini5.valid = 0U;
+            UwbMini5.rseq_valid = 0U;
+        }
     }
 
-    if (UwbMini5.age_ms < 0xFFFFU)
+    if (UwbMini5.filter_last_update_ms != 0U)
     {
-        UwbMini5.age_ms++;
-    }
+        if (UwbMini5.filter_age_ms < 0xFFFFU)
+        {
+            UwbMini5.filter_age_ms++;
+        }
 
-    if (UwbMini5.age_ms > UWB_DATA_TIMEOUT_MS)
-    {
-        UwbMini5.valid = 0U;
-        UwbMini5.rseq_valid = 0U;
+        if (UwbMini5.filter_age_ms > UWB_DATA_TIMEOUT_MS)
+        {
+            UwbMini5.filter_valid = 0U;
+            UwbMini5.filter_warmup_count = 0U;
+            UwbMini5.filter_last_update_ms = 0U;
+        }
     }
 }

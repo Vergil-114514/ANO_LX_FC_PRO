@@ -259,6 +259,13 @@ uint8_t AnoPTv8CmdSend(const uint16_t linktype, const uint8_t daddr, const uint8
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void AnoPTv8CmdRecvCheck(const uint16_t linktype, const _un_frame_v8 *p)
 {
+    if ((cmdSendStatus != WaitForCheck) || (linktype != LT_U1) ||
+        (p->frame.sdevid != ANOPTV8DEVID_LXIMU) ||
+        (p->frame.datalen != 3U))
+    {
+        return;
+    }
+
     if(p->frame.frameid == 0x00)
     {
         if(p->frame.data[0] == cmdInfoNeedToCheck[0] && p->frame.data[1] == cmdInfoNeedToCheck[1] && p->frame.data[2] == cmdInfoNeedToCheck[2])
@@ -280,18 +287,7 @@ void AnoPTv8CmdRecvCheck(const uint16_t linktype, const _un_frame_v8 *p)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void AnoPTv8CmdRunThread1ms(void)
 {
-    if(cmdSendStatus != Idle)
-    {
-        if(cmdSendOverTimeCnt < CMDSENDOVERTIME)
-            cmdSendOverTimeCnt ++;
-        else
-        {
-            //ÃüÁî·¢ËÍ³¬Ê±
-            cmdSendOverTimeCnt = 0;
-            cmdSendStatus = Idle;
-        }
-    }
-    else if(cmdSendStatus == CheckOK)
+    if(cmdSendStatus == CheckOK)
     {
         //ÃüÁî·¢ËÍ³É¹¦
         cmdSendOverTimeCnt = 0;
@@ -302,5 +298,16 @@ void AnoPTv8CmdRunThread1ms(void)
         //ÃüÁî·¢ËÍÊ§°Ü
         cmdSendOverTimeCnt = 0;
         cmdSendStatus = Idle;
+    }
+    else if(cmdSendStatus == WaitForCheck)
+    {
+        if(cmdSendOverTimeCnt < CMDSENDOVERTIME)
+            cmdSendOverTimeCnt ++;
+        else
+        {
+            //ÃüÁî·¢ËÍ³¬Ê±
+            cmdSendOverTimeCnt = 0;
+            cmdSendStatus = Idle;
+        }
     }
 }
